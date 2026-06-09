@@ -20,9 +20,31 @@ If another agent only has this repository URL, have it follow this order:
 
 ## Install Binary
 
-Preferred: download a release archive from
-[GitHub Releases](https://github.com/koda-claw/tmwd-cdp-bridge/releases).
-Choose the archive for the local OS, extract it, and put the binary on `PATH`.
+Preferred: use the platform-detecting installer from a source checkout:
+
+```sh
+git clone https://github.com/koda-claw/tmwd-cdp-bridge.git
+cd tmwd-cdp-bridge
+
+# macOS/Linux: auto-detects OS and CPU architecture.
+SKILL_DIR="$HOME/.codex/skills" sh scripts/install.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+git clone https://github.com/koda-claw/tmwd-cdp-bridge.git
+cd tmwd-cdp-bridge
+$env:SKILL_DIR="$HOME\.codex\skills"
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+```
+
+The installers download the matching
+[GitHub Release](https://github.com/koda-claw/tmwd-cdp-bridge/releases), install
+the binary, and copy `skills/tmwd-cdp-bridge` when `SKILL_DIR` is set.
+
+Manual download is also supported. Choose the archive for the local OS, extract
+it, and put the binary on `PATH`.
 
 Examples:
 
@@ -60,8 +82,8 @@ Use `target/release/tmwd-cdp-bridge` directly or copy it to a directory on
 
 ## Install Skill
 
-Copy the repository skill folder into the agent's local skills directory. The
-folder to copy is:
+If you did not set `SKILL_DIR` while running the installer, copy the repository
+skill folder into the agent's local skills directory. The folder to copy is:
 
 ```text
 skills/tmwd-cdp-bridge
@@ -96,12 +118,19 @@ with Developer mode enabled.
 Then call:
 
 ```sh
-TOKEN="$(cat "$HOME/Library/Application Support/tmwd-cdp-bridge/token")"
+APP_DIR="${CDP_BRIDGE_APP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/tmwd-cdp-bridge}"
+case "$(uname -s)" in
+  Darwin) APP_DIR="${CDP_BRIDGE_APP_DIR:-$HOME/Library/Application Support/tmwd-cdp-bridge}" ;;
+esac
+TOKEN="$(cat "$APP_DIR/token")"
 curl -s http://127.0.0.1:18766/v1/rpc \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"cmd":"get_all_sessions"}'
 ```
+
+On Windows, the default token path is
+`%LOCALAPPDATA%\tmwd-cdp-bridge\token`.
 
 ## Real Usage
 

@@ -59,6 +59,23 @@ jobs:
           node --check scripts/soak_bridge.mjs
           node --check scripts/smoke_real_browser.mjs
 
+      - name: Unix installer syntax
+        if: runner.os != 'Windows'
+        shell: bash
+        run: sh -n scripts/install.sh
+
+      - name: Windows installer syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref]$tokens, [ref]$errors) > $null
+          if ($errors.Count) {
+            $errors | Format-List
+            exit 1
+          }
+
       - name: No-extension smoke
         shell: bash
         run: node scripts/smoke_no_extension.mjs
