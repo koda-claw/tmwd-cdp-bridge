@@ -2,11 +2,28 @@
 
 Standalone local bridge for the existing TMWD CDP Bridge Chrome/Edge extension.
 
+[中文介绍](README.zh-CN.md) | [Visual intro](docs/visual-intro.md) |
+[Releases](https://github.com/koda-claw/tmwd-cdp-bridge/releases)
+
+![tmwd-cdp-bridge browser CDP bridge](docs/tmwd-cdp-bridge-poster.png)
+
 It exposes:
 
 - WebSocket extension channel on `127.0.0.1:18765`
 - HTTP RPC API on `127.0.0.1:18766`
 - Fixed extension ID `eghifjkffmcmffejmaaeicejpfopplem`
+
+## Visual Overview
+
+![tmwd-cdp-bridge architecture](docs/tmwd-cdp-bridge-arch.png)
+
+`tmwd-cdp-bridge` connects three pieces:
+
+1. A Chrome/Edge MV3 extension running inside the user's browser.
+2. A localhost-only Rust bridge exposing WebSocket and HTTP RPC endpoints.
+3. Any agent that can run shell commands, read local files, and call local HTTP.
+
+More diagrams are available in [docs/visual-intro.md](docs/visual-intro.md).
 
 ## Quick Start
 
