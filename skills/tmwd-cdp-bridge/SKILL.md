@@ -26,7 +26,10 @@ If the user explicitly asked to inspect, operate, or test a site, proceed and av
 
 ## Start Or Reuse
 
-If `tmwd-cdp-bridge` is not on `PATH` and you are inside this source checkout, replace it with `cargo run --`.
+If `tmwd-cdp-bridge` is not on `PATH`, install the release binary from
+`https://github.com/koda-claw/tmwd-cdp-bridge/releases` or build from source
+with `cargo build --release`. If you are already inside this source checkout,
+replace `tmwd-cdp-bridge` with `cargo run --`.
 
 Track whether you started the bridge in this task. Stop only a bridge you started; reuse matching existing bridges.
 

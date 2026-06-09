@@ -10,6 +10,81 @@ It exposes:
 
 ## Quick Start
 
+If another agent only has this repository URL, have it follow this order:
+
+1. Install the `tmwd-cdp-bridge` binary.
+2. Install the `skills/tmwd-cdp-bridge` skill folder into its local skills directory.
+3. Run `tmwd-cdp-bridge install edge` or `install chrome`.
+4. Load the printed unpacked extension directory in the browser extensions page.
+5. Start or reuse the bridge and use `/health` plus authenticated `/v1/rpc`.
+
+## Install Binary
+
+Preferred: download a release archive from
+[GitHub Releases](https://github.com/koda-claw/tmwd-cdp-bridge/releases).
+Choose the archive for the local OS, extract it, and put the binary on `PATH`.
+
+Examples:
+
+```sh
+# macOS arm64
+curl -L -o tmwd-cdp-bridge.tar.gz \
+  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.0-rc.1/tmwd-cdp-bridge-macos-arm64.tar.gz
+tar -xzf tmwd-cdp-bridge.tar.gz
+chmod +x tmwd-cdp-bridge
+mkdir -p "$HOME/.local/bin"
+mv tmwd-cdp-bridge "$HOME/.local/bin/"
+
+# Linux x64
+curl -L -o tmwd-cdp-bridge.tar.gz \
+  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.0-rc.1/tmwd-cdp-bridge-linux-x64.tar.gz
+tar -xzf tmwd-cdp-bridge.tar.gz
+chmod +x tmwd-cdp-bridge
+mkdir -p "$HOME/.local/bin"
+mv tmwd-cdp-bridge "$HOME/.local/bin/"
+```
+
+Windows users can download `tmwd-cdp-bridge-windows-x64.zip`, extract
+`tmwd-cdp-bridge.exe`, and add its directory to `PATH`.
+
+Source fallback:
+
+```sh
+git clone https://github.com/koda-claw/tmwd-cdp-bridge.git
+cd tmwd-cdp-bridge
+cargo build --release
+```
+
+Use `target/release/tmwd-cdp-bridge` directly or copy it to a directory on
+`PATH`.
+
+## Install Skill
+
+Copy the repository skill folder into the agent's local skills directory. The
+folder to copy is:
+
+```text
+skills/tmwd-cdp-bridge
+```
+
+Common examples:
+
+```sh
+# Codex-style local skill directory
+mkdir -p "$HOME/.codex/skills"
+cp -R skills/tmwd-cdp-bridge "$HOME/.codex/skills/"
+
+# Generic agent skill directory
+mkdir -p "$HOME/.agents/skills"
+cp -R skills/tmwd-cdp-bridge "$HOME/.agents/skills/"
+```
+
+After installing the skill, ask the agent to use `tmwd-cdp-bridge` for browser
+inspection or page automation. The skill itself explains the runtime flow and
+RPC contract.
+
+## Browser Setup
+
 ```sh
 cargo run -- install edge
 cargo run -- start
