@@ -4,6 +4,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
+use tokio::time::{Duration, sleep};
 
 use tmwd_cdp_bridge::{
     auth,
@@ -195,9 +196,36 @@ async fn stop(config: BridgeConfig) -> Result<()> {
         .send()
         .await?;
     if response.status() == StatusCode::OK {
+        wait_until_stopped(&client, &config).await?;
+        remove_pid_file_if_matches(&config, health_pid)?;
         return Ok(());
     }
     bail!("shutdown failed: {}", response.status())
+}
+
+async fn wait_until_stopped(client: &reqwest::Client, config: &BridgeConfig) -> Result<()> {
+    for _ in 0..40 {
+        let health = health_status(client, config).await;
+        if health.get("owned_by_tmwd").and_then(Value::as_bool) != Some(true) {
+            return Ok(());
+        }
+        sleep(Duration::from_millis(50)).await;
+    }
+    bail!(
+        "shutdown accepted but tmwd-cdp-bridge is still healthy on HTTP port {}",
+        config.http_port
+    )
+}
+
+fn remove_pid_file_if_matches(config: &BridgeConfig, expected_pid: u64) -> Result<()> {
+    match read_pid_file(config)? {
+        Some(pid) if pid == expected_pid => fs::remove_file(config.pid_path())
+            .with_context(|| format!("remove pid {}", config.pid_path().display())),
+        Some(pid) => {
+            bail!("refusing to remove pid file: expected stopped pid {expected_pid}, found {pid}")
+        }
+        None => Ok(()),
+    }
 }
 
 fn read_pid_file(config: &BridgeConfig) -> Result<Option<u64>> {

@@ -551,6 +551,7 @@ async fn stop_verifies_pid_and_releases_ports() {
     assert!(output.status.success());
     wait_until_unhealthy(&bridge.url("/health")).await;
     let _ = bridge.child.wait();
+    assert!(!bridge.app_dir.path().join("pid").exists());
     let child = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
         .arg("start")
         .env("CDP_BRIDGE_APP_DIR", bridge.app_dir.path())
