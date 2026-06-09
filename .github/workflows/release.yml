@@ -59,7 +59,7 @@ jobs:
           set -euo pipefail
           mkdir -p "dist/${{ matrix.name }}"
           cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "dist/${{ matrix.name }}/"
-          cp README.md LICENSE "dist/${{ matrix.name }}/"
+          cp README.md README.zh-CN.md LICENSE "dist/${{ matrix.name }}/"
           cp -R docs extension scripts skills "dist/${{ matrix.name }}/"
 
       - name: Archive unix
