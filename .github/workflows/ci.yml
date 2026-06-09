@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Rust fmt
+        run: cargo fmt --all --check
+
+      - name: Rust clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test
+
+      - name: Rust debug binary
+        run: cargo build
+
+      - name: JavaScript syntax checks
+        shell: bash
+        run: |
+          node --check extension/background.js
+          node --check scripts/e2e_chrome_smoke.mjs
+          node --check scripts/e2e_browser_inspect_url.mjs
+          node --check scripts/smoke_no_extension.mjs
+          node --check scripts/skill_minimal_flow.mjs
+          node --check scripts/soak_bridge.mjs
+          node --check scripts/smoke_real_browser.mjs
+
+      - name: No-extension smoke
+        shell: bash
+        run: node scripts/smoke_no_extension.mjs
+
+      - name: Skill minimal flow
+        shell: bash
+        run: node scripts/skill_minimal_flow.mjs
+
+      - name: Skill validate
+        shell: bash
+        run: |
+          python3 scripts/validate_skill.py skills/tmwd-cdp-bridge

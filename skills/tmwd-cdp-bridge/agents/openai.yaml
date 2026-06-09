@@ -1,0 +1,4 @@
+interface:
+  display_name: "TMWD CDP Bridge"
+  short_description: "Control Chrome or Edge through tmwd-cdp-bridge"
+  default_prompt: "Use $tmwd-cdp-bridge to inspect a browser page and run JavaScript through the local bridge."
