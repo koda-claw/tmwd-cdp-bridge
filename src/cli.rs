@@ -13,7 +13,12 @@ use tmwd_cdp_bridge::{
 };
 
 #[derive(Debug, Parser)]
-#[command(author, version, about)]
+#[command(
+    author,
+    version,
+    about = "Local Chrome/Edge CDP bridge for agents",
+    long_about = "Run and inspect a localhost-only bridge for the bundled TMWD CDP Bridge browser extension.\n\nTypical flow:\n  tmwd-cdp-bridge install edge\n  tmwd-cdp-bridge start\n  tmwd-cdp-bridge status --json"
+)]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -21,13 +26,29 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(about = "Run the local HTTP and WebSocket bridge")]
     Start,
-    Stop,
+    #[command(about = "Stop a verified running bridge")]
+    Stop {
+        #[arg(long, help = "Emit machine-readable JSON")]
+        json: bool,
+    },
+    #[command(about = "Copy the bundled extension into the platform app data directory")]
     Install { browser: Browser },
+    #[command(about = "Print extension loading instructions for browser recovery")]
     Repair { browser: Option<Browser> },
+    #[command(about = "Refresh the installed extension files")]
     Upgrade,
-    Status,
-    Version,
+    #[command(about = "Show bridge, extension, token, and port status")]
+    Status {
+        #[arg(long, help = "Emit machine-readable JSON")]
+        json: bool,
+    },
+    #[command(about = "Print the CLI version")]
+    Version {
+        #[arg(long, help = "Emit machine-readable JSON")]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -41,7 +62,18 @@ pub async fn run() -> Result<()> {
     let config = BridgeConfig::from_env()?;
     match args.command {
         Command::Start => server::run_server(config).await,
-        Command::Stop => stop(config).await,
+        Command::Stop { json } => {
+            let outcome = stop(config).await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&outcome.to_json())?);
+            } else {
+                println!(
+                    "Stopped tmwd-cdp-bridge (pid {}, HTTP port {}).",
+                    outcome.pid, outcome.http_port
+                );
+            }
+            Ok(())
+        }
         Command::Install { browser } => {
             let instructions = install::install_extension(&config, browser.as_str())?;
             println!("{instructions}");
@@ -61,9 +93,16 @@ pub async fn run() -> Result<()> {
             println!("Extension version updated to {EXTENSION_VERSION}");
             Ok(())
         }
-        Command::Status => status(config).await,
-        Command::Version => {
-            println!("{}", env!("CARGO_PKG_VERSION"));
+        Command::Status { json } => status(config, json).await,
+        Command::Version { json } => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({"version": env!("CARGO_PKG_VERSION")}))?
+                );
+            } else {
+                println!("{}", env!("CARGO_PKG_VERSION"));
+            }
             Ok(())
         }
     }
@@ -78,10 +117,20 @@ impl Browser {
     }
 }
 
-async fn status(config: BridgeConfig) -> Result<()> {
+async fn status(config: BridgeConfig, json_output: bool) -> Result<()> {
+    let body = status_body(config).await;
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&body)?);
+    } else {
+        print_human_status(&body);
+    }
+    Ok(())
+}
+
+async fn status_body(config: BridgeConfig) -> Value {
     let client = reqwest::Client::new();
     let server = health_status(&client, &config).await;
-    let body = json!({
+    json!({
         "server": server,
         "pid_file": pid_file_status(&config),
         "ports": {
@@ -93,9 +142,83 @@ async fn status(config: BridgeConfig) -> Result<()> {
         "extension_version": extension_version_status(&config),
         "expected_extension_version": EXTENSION_VERSION,
         "token": token_status(&config),
-    });
-    println!("{}", serde_json::to_string_pretty(&body)?);
-    Ok(())
+    })
+}
+
+fn print_human_status(body: &Value) {
+    let server = &body["server"];
+    let ports = &body["ports"];
+    let pid_file = &body["pid_file"];
+    let extension = &body["extension_version"];
+
+    let http_port = ports["http"].as_u64().unwrap_or(18766);
+    let ws_port = ports["ws"].as_u64().unwrap_or(18765);
+    let running = server["owned_by_tmwd"].as_bool() == Some(true);
+    let server_line = if running {
+        match server["pid"].as_u64() {
+            Some(pid) => format!("running (pid {pid})"),
+            None => "running".to_string(),
+        }
+    } else if let Some(status) = server["status"].as_u64() {
+        format!("not running; HTTP port answered with status {status}")
+    } else {
+        "not running".to_string()
+    };
+
+    let extension_line = match (
+        extension["installed"].as_str(),
+        extension["ok"].as_bool().unwrap_or(false),
+    ) {
+        (Some(installed), true) => format!("installed {installed} (ok)"),
+        (Some(installed), false) => format!(
+            "installed {installed} (expected {})",
+            body["expected_extension_version"]
+                .as_str()
+                .unwrap_or("unknown")
+        ),
+        (None, _) => "not installed".to_string(),
+    };
+    let connected_line = if running {
+        match server["extension_connected"].as_bool() {
+            Some(true) => "connected".to_string(),
+            Some(false) => "not connected".to_string(),
+            None => "unknown".to_string(),
+        }
+    } else {
+        "bridge not running".to_string()
+    };
+    let pid_line = match (pid_file["present"].as_bool(), pid_file["pid"].as_u64()) {
+        (Some(true), Some(pid)) => format!("present ({pid})"),
+        (Some(true), None) => "present (unreadable)".to_string(),
+        _ => "absent".to_string(),
+    };
+
+    println!("tmwd-cdp-bridge {}", env!("CARGO_PKG_VERSION"));
+    println!("Server: {server_line}");
+    println!("HTTP:   http://127.0.0.1:{http_port}");
+    println!("WS:     ws://127.0.0.1:{ws_port}/");
+    println!("Extension files: {extension_line}");
+    println!("Extension link:  {connected_line}");
+    println!("Token:  {}", body["token"].as_str().unwrap_or("missing"));
+    println!("Pid file: {pid_line}");
+    println!("App dir: {}", body["app_dir"].as_str().unwrap_or("unknown"));
+    println!(
+        "Extension dir: {}",
+        body["extension_dir"].as_str().unwrap_or("unknown")
+    );
+    println!();
+    println!("Machine-readable: tmwd-cdp-bridge status --json");
+    println!("Health endpoint:  curl -s http://127.0.0.1:{http_port}/health");
+
+    if !extension["ok"].as_bool().unwrap_or(false) {
+        println!("Next: tmwd-cdp-bridge install edge");
+    } else if !running {
+        println!("Next: tmwd-cdp-bridge start");
+    } else if server["extension_connected"].as_bool() != Some(true) {
+        println!("Next: reload the unpacked extension in chrome://extensions or edge://extensions");
+    } else {
+        println!("Next: use authenticated POST /v1/rpc");
+    }
 }
 
 async fn health_status(client: &reqwest::Client, config: &BridgeConfig) -> Value {
@@ -165,7 +288,22 @@ fn extension_version_status(config: &BridgeConfig) -> Value {
     }
 }
 
-async fn stop(config: BridgeConfig) -> Result<()> {
+struct StopOutcome {
+    pid: u64,
+    http_port: u16,
+}
+
+impl StopOutcome {
+    fn to_json(&self) -> Value {
+        json!({
+            "stopped": true,
+            "pid": self.pid,
+            "http_port": self.http_port,
+        })
+    }
+}
+
+async fn stop(config: BridgeConfig) -> Result<StopOutcome> {
     let client = reqwest::Client::new();
     let health = health_status(&client, &config).await;
     if health.get("owned_by_tmwd").and_then(Value::as_bool) != Some(true) {
@@ -198,7 +336,10 @@ async fn stop(config: BridgeConfig) -> Result<()> {
     if response.status() == StatusCode::OK {
         wait_until_stopped(&client, &config).await?;
         remove_pid_file_if_matches(&config, health_pid)?;
-        return Ok(());
+        return Ok(StopOutcome {
+            pid: health_pid,
+            http_port: config.http_port,
+        });
     }
     bail!("shutdown failed: {}", response.status())
 }

@@ -112,7 +112,7 @@ async function main() {
     }
 
     const status = await new Promise((resolve, reject) => {
-      const child = spawn(bridgeBin, ["status"], { cwd: root, env });
+      const child = spawn(bridgeBin, ["status", "--json"], { cwd: root, env });
       let stdout = "";
       let stderr = "";
       child.stdout.on("data", (d) => { stdout += d; });

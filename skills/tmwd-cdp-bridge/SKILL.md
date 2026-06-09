@@ -47,8 +47,10 @@ If you are already inside this source checkout, you may replace
 Track whether you started the bridge in this task. Stop only a bridge you started; reuse matching existing bridges.
 
 ```sh
-tmwd-cdp-bridge status
+tmwd-cdp-bridge status --json
 ```
+
+Use plain `tmwd-cdp-bridge status` only for human-readable troubleshooting.
 
 If no compatible server is running:
 

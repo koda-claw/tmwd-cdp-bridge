@@ -4,10 +4,12 @@
 
 ```sh
 tmwd-cdp-bridge status
+tmwd-cdp-bridge status --json
 curl -s http://127.0.0.1:18766/health
 ```
 
-If working from source, replace `tmwd-cdp-bridge` with `cargo run --`.
+If working from source, replace `tmwd-cdp-bridge` with `cargo run --`. Use
+`status` for a readable summary and `status --json` for scripts or agents.
 
 ## Port Is In Use
 

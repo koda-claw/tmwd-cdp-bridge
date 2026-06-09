@@ -178,8 +178,12 @@ tmwd-cdp-bridge install edge
 tmwd-cdp-bridge install chrome
 tmwd-cdp-bridge repair edge
 tmwd-cdp-bridge status
+tmwd-cdp-bridge status --json
 tmwd-cdp-bridge version
 ```
+
+`status` prints a human-readable summary. Use `status --json` for agents,
+scripts, and CI checks.
 
 ## Install, Upgrade, Uninstall
 

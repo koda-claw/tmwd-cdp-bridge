@@ -168,6 +168,7 @@ async fn rpc_status_and_body(
 fn status_json(app_dir: &std::path::Path, ws_port: u16, http_port: u16) -> Value {
     let output = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
         .arg("status")
+        .arg("--json")
         .env("CDP_BRIDGE_APP_DIR", app_dir)
         .env("CDP_BRIDGE_WS_PORT", ws_port.to_string())
         .env("CDP_BRIDGE_HTTP_PORT", http_port.to_string())
@@ -412,6 +413,7 @@ fn status_outputs_structured_runtime_state() {
     let http_port = free_port();
     let output = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
         .arg("status")
+        .arg("--json")
         .env("CDP_BRIDGE_APP_DIR", app_dir.path())
         .env("CDP_BRIDGE_WS_PORT", ws_port.to_string())
         .env("CDP_BRIDGE_HTTP_PORT", http_port.to_string())
@@ -428,6 +430,27 @@ fn status_outputs_structured_runtime_state() {
     assert_eq!(body["extension_version"]["ok"], true);
     assert_eq!(body["token"], "abcdef01...");
     assert_eq!(body["pid_file"]["present"], false);
+}
+
+#[test]
+fn status_default_outputs_human_summary() {
+    let app_dir = tempfile::tempdir().expect("temp app dir");
+    fs::write(app_dir.path().join("version"), EXTENSION_VERSION).unwrap();
+    let ws_port = free_port();
+    let http_port = free_port();
+    let output = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
+        .arg("status")
+        .env("CDP_BRIDGE_APP_DIR", app_dir.path())
+        .env("CDP_BRIDGE_WS_PORT", ws_port.to_string())
+        .env("CDP_BRIDGE_HTTP_PORT", http_port.to_string())
+        .output()
+        .expect("run status");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("tmwd-cdp-bridge"));
+    assert!(stdout.contains("Server: not running"));
+    assert!(stdout.contains("Machine-readable: tmwd-cdp-bridge status --json"));
+    assert!(serde_json::from_slice::<Value>(&output.stdout).is_err());
 }
 
 #[tokio::test]
@@ -543,12 +566,17 @@ async fn stop_verifies_pid_and_releases_ports() {
     let mut bridge = BridgeProcess::start().await;
     let output = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
         .arg("stop")
+        .arg("--json")
         .env("CDP_BRIDGE_APP_DIR", bridge.app_dir.path())
         .env("CDP_BRIDGE_WS_PORT", bridge.ws_port.to_string())
         .env("CDP_BRIDGE_HTTP_PORT", bridge.http_port.to_string())
         .output()
         .expect("run stop");
     assert!(output.status.success());
+    let body: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(body["stopped"], true);
+    assert_eq!(body["pid"], bridge.child.id());
+    assert_eq!(body["http_port"], bridge.http_port);
     wait_until_unhealthy(&bridge.url("/health")).await;
     let _ = bridge.child.wait();
     assert!(!bridge.app_dir.path().join("pid").exists());

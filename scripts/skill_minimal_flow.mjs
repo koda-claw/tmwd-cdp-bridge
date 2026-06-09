@@ -77,7 +77,7 @@ async function main() {
       CDP_BRIDGE_HTTP_PORT: String(httpPort),
     };
 
-    const initialStatus = await runCli(["status"], env);
+    const initialStatus = await runCli(["status", "--json"], env);
     if (initialStatus.code !== 0) throw new Error(`status failed: ${initialStatus.stderr}`);
     const initial = JSON.parse(initialStatus.stdout);
     if (initial.server?.running !== false) throw new Error(`expected no running server: ${initialStatus.stdout}`);
