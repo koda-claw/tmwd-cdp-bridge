@@ -1147,7 +1147,7 @@ fn install_command_copies_extension_and_version() {
     assert!(extension_dir.join("background.js").is_file());
     assert_eq!(
         fs::read_to_string(app_dir.path().join("version")).unwrap(),
-        "2.0"
+        EXTENSION_VERSION
     );
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("chrome://extensions"));

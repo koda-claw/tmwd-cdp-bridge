@@ -69,7 +69,8 @@ async function main() {
   const httpPort = await freePort();
   let bridge = null;
   try {
-    await writeFile(path.join(appDir, "version"), "2.0");
+    const manifest = JSON.parse(await readFile(path.join(root, "extension", "manifest.json"), "utf8"));
+    await writeFile(path.join(appDir, "version"), manifest.version);
     const env = {
       ...process.env,
       CDP_BRIDGE_APP_DIR: appDir,

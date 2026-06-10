@@ -16,6 +16,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 async function handleExtMessage(msg, sender) {
+  if (msg.cmd === 'bridgeConfig') return await handleBridgeConfig();
   if (msg.cmd === 'cookies') return await handleCookies(msg, sender);
   if (msg.cmd === 'cdp') return await handleCDP(msg, sender);
   if (msg.cmd === 'batch') return await handleBatch(msg, sender);
@@ -98,6 +99,14 @@ async function handleCookies(msg, sender) {
       if (!merged.some(x => x.name === c.name && x.domain === c.domain)) merged.push(c);
     }
     return { ok: true, data: merged };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+async function handleBridgeConfig() {
+  try {
+    return { ok: true, data: await bridgeUrls() };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -314,12 +323,18 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-async function handleWsExec(data) {
+function sendWs(socket, payload) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+  socket.send(JSON.stringify(payload));
+  return true;
+}
+
+async function handleWsExec(socket, data) {
   const tabId = data.tabId;
   console.log('[TMWD-WS] Exec request', data.id, 'on tab', tabId);
-  ws.send(JSON.stringify({ type: 'ack', id: data.id }));
+  sendWs(socket, { type: 'ack', id: data.id });
   if (!tabId) {
-    ws.send(JSON.stringify({ type: 'error', id: data.id, error: 'No tabId provided' }));
+    sendWs(socket, { type: 'error', id: data.id, error: 'No tabId provided' });
     return;
   }
   // Use onCreated listener to reliably capture new tabs (avoids race condition with query-diff)
@@ -376,13 +391,13 @@ async function handleWsExec(data) {
       try { const t = await chrome.tabs.get(id); newTabs.push({id: t.id, url: t.url, title: t.title}); } catch (_) {}
     }
     if (res?.ok) {
-      ws.send(JSON.stringify({ type: 'result', id: data.id, result: res.data, newTabs }));
+      sendWs(socket, { type: 'result', id: data.id, result: res.data, newTabs });
     } else {
       console.log(res);
-      ws.send(JSON.stringify({ type: 'error', id: data.id, error: res?.error || 'Unknown error', newTabs }));
+      sendWs(socket, { type: 'error', id: data.id, error: res?.error || 'Unknown error', newTabs });
     }
   } catch (e) {
-    ws.send(JSON.stringify({ type: 'error', id: data.id, error: { name: e.name || 'Error', message: e.message || String(e), stack: e.stack || '' } }));
+    sendWs(socket, { type: 'error', id: data.id, error: { name: e.name || 'Error', message: e.message || String(e), stack: e.stack || '' } });
   } finally {
     chrome.tabs.onCreated.removeListener(onCreated);
   }
@@ -394,50 +409,52 @@ function connectWS() {
   bridgeUrls().then(({ wsUrl }) => {
     console.log('[TMWD-WS] Connecting to', wsUrl);
   try {
-    ws = new WebSocket(wsUrl);
-    globalThis.__tmwdWs = ws;
+    const socket = new WebSocket(wsUrl);
+    ws = socket;
+    globalThis.__tmwdWs = socket;
     } catch (e) {
       console.error('[TMWD-WS] Constructor error:', e);
       ws = null;
       scheduleProbe();
       return;
     }
-  ws.onopen = async () => {
+  const socket = ws;
+  socket.onopen = async () => {
     console.log('[TMWD-WS] Connected!');
     scheduleKeepalive(); // Keep SW alive while connected
     const { tmwdToken } = await chrome.storage.local.get('tmwdToken');
     if (tmwdToken) {
-      ws.send(JSON.stringify({ type: 'auth', token: tmwdToken }));
+      sendWs(socket, { type: 'auth', token: tmwdToken });
     } else {
-      ws.send(JSON.stringify({ type: 'hello' }));
+      sendWs(socket, { type: 'hello' });
     }
   };
-  ws.onmessage = async (event) => {
+  socket.onmessage = async (event) => {
     try {
       const data = JSON.parse(event.data);
       if (data.type === 'auth_required') {
         const { tmwdToken } = await chrome.storage.local.get('tmwdToken');
-        if (tmwdToken) ws.send(JSON.stringify({ type: 'auth', token: tmwdToken }));
-        else ws.send(JSON.stringify({ type: 'hello' }));
+        if (tmwdToken) sendWs(socket, { type: 'auth', token: tmwdToken });
+        else sendWs(socket, { type: 'hello' });
         return;
       }
       if (data.type === 'token_grant' && data.token) {
         await chrome.storage.local.set({ tmwdToken: data.token });
-        ws.close();
+        socket.close();
         return;
       }
       if (data.type === 'auth_ok') {
         const tabs = (await chrome.tabs.query({})).filter(t => isScriptable(t.url));
-        ws.send(JSON.stringify({
+        sendWs(socket, {
           type: 'ext_ready',
           tabs: tabs.map(t => ({ id: t.id, url: t.url, title: t.title, active: t.active, window_id: t.windowId }))
-        }));
+        });
         console.log('[TMWD-WS] Sent ext_ready with', tabs.length, 'tabs');
         return;
       }
       if (data.type === 'auth_error') {
         await chrome.storage.local.remove('tmwdToken');
-        ws.close();
+        socket.close();
         return;
       }
       if (data.id && data.code) {
@@ -450,27 +467,27 @@ function connectWS() {
           // Custom protocol message → route to handleExtMessage
           if (code.tabId === undefined && data.tabId !== undefined) code.tabId = data.tabId;
           const res = await handleExtMessage(code, {});
-          ws.send(JSON.stringify({ type: res.ok ? 'result' : 'error', id: data.id, result: res.data ?? res.results ?? res, error: res.error }));
+          sendWs(socket, { type: res.ok ? 'result' : 'error', id: data.id, result: res.data ?? res.results ?? res, error: res.error });
         } else if (typeof code === 'string') {
           // Plain JS code
-          await handleWsExec(data);
+          await handleWsExec(socket, data);
         } else if (typeof code === 'object' && code !== null) {
           // Object without cmd → legacy extension message
           const msg = code.tabId === undefined && data.tabId !== undefined ? { ...code, tabId: data.tabId } : code;
           const res = await handleExtMessage(msg, {});
-          ws.send(JSON.stringify({ type: res.ok ? 'result' : 'error', id: data.id, result: res.data ?? res.results ?? res, error: res.error }));
+          sendWs(socket, { type: res.ok ? 'result' : 'error', id: data.id, result: res.data ?? res.results ?? res, error: res.error });
         }
       }
     } catch (e) {
       console.error('[TMWD-WS] message parse error', e);
     }
   };
-  ws.onclose = () => {
+  socket.onclose = () => {
     console.log('[TMWD-WS] Disconnected');
-    ws = null;
+    if (ws === socket) ws = null;
     scheduleProbe();
   };
-  ws.onerror = (e) => {
+  socket.onerror = (e) => {
     console.error('[TMWD-WS] Error:', e);
     // onclose will fire after this, which triggers reconnect
   };

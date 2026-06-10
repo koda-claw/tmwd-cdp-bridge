@@ -1,19 +1,257 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TMWD CDP Bridge</title>
 <style>
-body{width:420px;max-height:500px;margin:0;padding:8px;font:12px monospace;background:#1e1e1e;color:#d4d4d4;overflow-y:auto}
-h3{margin:4px 0;color:#569cd6}
-button{background:#264f78;color:#fff;border:none;padding:4px 12px;cursor:pointer;border-radius:3px;margin-bottom:6px}
-button:hover{background:#37699e}
-pre{white-space:pre-wrap;word-break:break-all;margin:0;padding:6px;background:#252526;border-radius:3px;max-height:420px;overflow-y:auto}
+:root {
+  color-scheme: dark;
+  --bg: #111318;
+  --panel: #191d24;
+  --panel-2: #202631;
+  --line: #323a47;
+  --text: #eef2f7;
+  --muted: #98a4b3;
+  --soft: #c7d0dc;
+  --blue: #63b3ff;
+  --green: #42d392;
+  --amber: #f4c15d;
+  --red: #ff6b6b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 430px;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.shell {
+  min-height: 480px;
+  padding: 14px;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.eyebrow {
+  color: var(--blue);
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--soft);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(244, 193, 93, .12);
+}
+
+.status-pill[data-state="ok"] .dot {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(66, 211, 146, .14);
+}
+
+.status-pill[data-state="bad"] .dot {
+  background: var(--red);
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, .14);
+}
+
+.grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.panel-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+button {
+  min-height: 28px;
+  border: 1px solid #3d6b9d;
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: #1d3957;
+  color: #f6fbff;
+  cursor: pointer;
+  font: inherit;
+}
+
+button:hover { background: #264b72; }
+button:active { transform: translateY(1px); }
+button.secondary {
+  border-color: var(--line);
+  background: #171b22;
+  color: var(--soft);
+}
+button.secondary:hover { background: #202632; }
+button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  transform: none;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 7px 10px;
+  padding: 10px;
+}
+
+.key { color: var(--muted); }
+.value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono-box {
+  margin: 0;
+  min-height: 188px;
+  max-height: 250px;
+  overflow: auto;
+  padding: 10px;
+  background: #0c0f14;
+  color: #dde6ef;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  flex: 0 0 auto;
+  color: var(--soft);
+}
 </style>
 </head>
 <body>
-<h3>🍪 Cookies</h3>
-<button id="refresh">刷新</button>
-<pre id="out">点击刷新获取 cookies...</pre>
-<script src="popup.js"></script>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="eyebrow">Agent Browser Bridge</div>
+        <h1>TMWD CDP Bridge</h1>
+      </div>
+      <div id="bridgeStatus" class="status-pill" data-state="pending">
+        <span class="dot"></span>
+        <span id="bridgeStatusText">Checking</span>
+      </div>
+    </header>
+
+    <section class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Current Tab</h2>
+          <div class="actions">
+            <button id="copyUrl" class="secondary" type="button">Copy URL</button>
+          </div>
+        </div>
+        <div class="kv">
+          <div class="key">Title</div><div id="tabTitle" class="value">-</div>
+          <div class="key">Origin</div><div id="tabOrigin" class="value">-</div>
+          <div class="key">Tab ID</div><div id="tabId" class="value">-</div>
+          <div class="key">Runtime</div><div id="runtimeId" class="value">-</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Cookies</h2>
+          <div class="actions">
+            <button id="copyCookies" class="secondary" type="button" disabled>Copy</button>
+            <button id="refresh" type="button">Refresh</button>
+          </div>
+        </div>
+        <pre id="out" class="mono-box">Loading cookies...</pre>
+      </section>
+    </section>
+
+    <footer class="footer">
+      <span id="hint" class="hint">Ready</span>
+      <span id="cookieCount" class="count">0 cookies</span>
+    </footer>
+  </main>
+  <script src="popup.js"></script>
 </body>
 </html>
