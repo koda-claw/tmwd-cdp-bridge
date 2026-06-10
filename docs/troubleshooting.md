@@ -46,7 +46,9 @@ The old extension ID `aikfggdiblmijobpgdapacebmcjknbof` is incompatible. Keep it
 `start` validates the installed extension version file before listening. If it reports a mismatch:
 
 ```sh
-tmwd-cdp-bridge upgrade
+tmwd-cdp-bridge install edge
+# or:
+tmwd-cdp-bridge install chrome
 ```
 
 Then reload the unpacked extension in the browser.

@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$Version = if ($env:TMWD_CDP_BRIDGE_VERSION) { $env:TMWD_CDP_BRIDGE_VERSION } else { "v0.1.0-rc.1" }
+$Version = if ($env:TMWD_CDP_BRIDGE_VERSION) { $env:TMWD_CDP_BRIDGE_VERSION } else { "v0.1.1" }
 $Repo = if ($env:TMWD_CDP_BRIDGE_REPO) { $env:TMWD_CDP_BRIDGE_REPO } else { "koda-claw/tmwd-cdp-bridge" }
 $BinDir = if ($env:BIN_DIR) { $env:BIN_DIR } else { Join-Path $env:USERPROFILE ".local\bin" }
 $SkillDir = if ($env:SKILL_DIR) { $env:SKILL_DIR } else { "" }

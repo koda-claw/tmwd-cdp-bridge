@@ -9,7 +9,7 @@ use tokio::time::{Duration, sleep};
 use tmwd_cdp_bridge::{
     auth,
     config::{BridgeConfig, EXTENSION_VERSION},
-    install, server,
+    install, self_update, server,
 };
 
 #[derive(Debug, Parser)]
@@ -37,8 +37,15 @@ enum Command {
     Install { browser: Browser },
     #[command(about = "Print extension loading instructions for browser recovery")]
     Repair { browser: Option<Browser> },
-    #[command(about = "Refresh the installed extension files")]
-    Upgrade,
+    #[command(about = "Upgrade the tmwd-cdp-bridge CLI binary from GitHub Releases")]
+    Upgrade {
+        #[arg(long, help = "Release tag to install, for example v0.1.1")]
+        version: Option<String>,
+        #[arg(long, help = "GitHub repo in owner/name form")]
+        repo: Option<String>,
+        #[arg(long, help = "Emit machine-readable JSON")]
+        json: bool,
+    },
     #[command(about = "Show bridge, extension, token, and port status")]
     Status {
         #[arg(long, help = "Emit machine-readable JSON")]
@@ -87,10 +94,28 @@ pub async fn run() -> Result<()> {
             );
             Ok(())
         }
-        Command::Upgrade => {
-            let instructions = install::install_extension(&config, "edge")?;
-            println!("{instructions}");
-            println!("Extension version updated to {EXTENSION_VERSION}");
+        Command::Upgrade {
+            version,
+            repo,
+            json,
+        } => {
+            let outcome =
+                self_update::upgrade_current_binary(version.as_deref(), repo.as_deref()).await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&outcome)?);
+            } else {
+                println!(
+                    "Upgraded tmwd-cdp-bridge to {} at {}.",
+                    outcome.version,
+                    outcome.destination.display()
+                );
+                println!("Source: {}", outcome.source);
+                if outcome.pending_restart {
+                    println!(
+                        "Replacement is scheduled after this process exits; rerun tmwd-cdp-bridge to use the new binary."
+                    );
+                }
+            }
             Ok(())
         }
         Command::Status { json } => status(config, json).await,

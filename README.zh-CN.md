@@ -80,10 +80,16 @@ tmwd-cdp-bridge start
 tmwd-cdp-bridge status
 tmwd-cdp-bridge status --json
 tmwd-cdp-bridge stop
+tmwd-cdp-bridge upgrade
 ```
 
 `status` 默认输出适合人看的摘要。Agent、脚本和 CI 应使用
 `status --json`，避免解析人类可读文本。
+
+`upgrade` 会从 GitHub Releases 下载当前平台的正式包并替换本地 CLI
+二进制；刷新浏览器扩展文件请继续使用 `install edge` 或 `install chrome`。
+Windows 上运行中的 `.exe` 可能会在 `upgrade` 进程退出后再完成替换，重新执行
+`tmwd-cdp-bridge version` 确认即可。
 
 ## 真实使用流程
 

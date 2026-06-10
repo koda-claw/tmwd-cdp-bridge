@@ -138,7 +138,7 @@ CLI lifecycle changes:
 - start with stale pid file
 - stop refuses pid mismatch
 - non-bridge port conflict is not killed
-- version mismatch gives install/upgrade guidance
+- version mismatch gives extension install guidance
 
 Skill changes:
 

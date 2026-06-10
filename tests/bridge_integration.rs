@@ -2,6 +2,7 @@ use std::{
     fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
+    path::Path,
     process::{Child, Command, Stdio},
     sync::{
         Arc,
@@ -397,7 +398,7 @@ async fn start_rejects_missing_or_mismatched_extension_version() {
     assert!(!mismatch.status.success());
     let stderr = String::from_utf8_lossy(&mismatch.stderr);
     assert!(stderr.contains("extension version mismatch"));
-    assert!(stderr.contains("tmwd-cdp-bridge upgrade"));
+    assert!(stderr.contains("tmwd-cdp-bridge install edge"));
 }
 
 #[test]
@@ -1153,6 +1154,58 @@ fn install_command_copies_extension_and_version() {
     assert!(stdout.contains(extension_dir.to_string_lossy().as_ref()));
 }
 
+#[test]
+fn upgrade_command_replaces_current_binary_from_release_archive() {
+    let bin_dir = tempfile::tempdir().expect("temp bin dir");
+    let app_dir = tempfile::tempdir().expect("temp app dir");
+    let release_dir = tempfile::tempdir().expect("temp release dir");
+    let fake_bin = bin_dir.path().join(if cfg!(windows) {
+        "tmwd-cdp-bridge.exe"
+    } else {
+        "tmwd-cdp-bridge"
+    });
+    fs::copy(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"), &fake_bin).expect("copy test binary");
+    make_executable(&fake_bin);
+
+    let archive = if cfg!(windows) {
+        release_dir.path().join("tmwd-cdp-bridge-windows-x64.zip")
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        release_dir
+            .path()
+            .join("tmwd-cdp-bridge-macos-arm64.tar.gz")
+    } else if cfg!(target_os = "macos") {
+        release_dir.path().join("tmwd-cdp-bridge-macos-x64.tar.gz")
+    } else {
+        release_dir.path().join("tmwd-cdp-bridge-linux-x64.tar.gz")
+    };
+    create_upgrade_archive(&archive, b"replacement-binary");
+
+    let output = Command::new(&fake_bin)
+        .arg("upgrade")
+        .arg("--json")
+        .env("CDP_BRIDGE_APP_DIR", app_dir.path())
+        .env(
+            "TMWD_CDP_BRIDGE_UPGRADE_URL",
+            format!("file://{}", archive.display()),
+        )
+        .output()
+        .expect("run upgrade");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let body: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(body["destination"], fake_bin.to_string_lossy().as_ref());
+    if cfg!(windows) {
+        assert_eq!(body["pending_restart"], true);
+    } else {
+        assert_eq!(body["pending_restart"], false);
+        assert_eq!(fs::read(&fake_bin).unwrap(), b"replacement-binary");
+    }
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn token_file_is_private_on_unix() {
@@ -1166,3 +1219,38 @@ async fn token_file_is_private_on_unix() {
         & 0o777;
     assert_eq!(mode, 0o600);
 }
+
+fn create_upgrade_archive(path: &Path, content: &[u8]) {
+    if path.extension().and_then(|ext| ext.to_str()) == Some("zip") {
+        let file = fs::File::create(path).expect("create zip");
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file(
+            "tmwd-cdp-bridge.exe",
+            zip::write::SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(content).unwrap();
+        zip.finish().unwrap();
+        return;
+    }
+
+    let file = fs::File::create(path).expect("create tar.gz");
+    let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+    let mut tar = tar::Builder::new(encoder);
+    let mut header = tar::Header::new_gnu();
+    header.set_path("./tmwd-cdp-bridge").unwrap();
+    header.set_size(content.len() as u64);
+    header.set_mode(0o755);
+    header.set_cksum();
+    tar.append(&header, content).unwrap();
+    tar.finish().unwrap();
+}
+
+#[cfg(unix)]
+fn make_executable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) {}

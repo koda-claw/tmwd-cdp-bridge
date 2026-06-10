@@ -81,7 +81,7 @@ impl BridgeConfig {
         match self.installed_extension_version()? {
             Some(version) if version == EXTENSION_VERSION => Ok(()),
             Some(version) => anyhow::bail!(
-                "extension version mismatch: installed {version}, expected {EXTENSION_VERSION}. Run 'tmwd-cdp-bridge upgrade' or 'tmwd-cdp-bridge install edge', then reload the browser extension."
+                "extension version mismatch: installed {version}, expected {EXTENSION_VERSION}. Run 'tmwd-cdp-bridge install edge' or 'tmwd-cdp-bridge install chrome', then reload the browser extension."
             ),
             None => anyhow::bail!(
                 "extension version file missing at {}. Run 'tmwd-cdp-bridge install edge' or 'tmwd-cdp-bridge install chrome', then load the printed extension directory.",

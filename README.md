@@ -68,7 +68,7 @@ Examples:
 ```sh
 # macOS arm64
 curl -L -o tmwd-cdp-bridge.tar.gz \
-  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.0-rc.1/tmwd-cdp-bridge-macos-arm64.tar.gz
+  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.1/tmwd-cdp-bridge-macos-arm64.tar.gz
 tar -xzf tmwd-cdp-bridge.tar.gz
 chmod +x tmwd-cdp-bridge
 mkdir -p "$HOME/.local/bin"
@@ -76,7 +76,7 @@ mv tmwd-cdp-bridge "$HOME/.local/bin/"
 
 # Linux x64
 curl -L -o tmwd-cdp-bridge.tar.gz \
-  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.0-rc.1/tmwd-cdp-bridge-linux-x64.tar.gz
+  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.1/tmwd-cdp-bridge-linux-x64.tar.gz
 tar -xzf tmwd-cdp-bridge.tar.gz
 chmod +x tmwd-cdp-bridge
 mkdir -p "$HOME/.local/bin"
@@ -197,6 +197,8 @@ tmwd-cdp-bridge repair edge
 tmwd-cdp-bridge status
 tmwd-cdp-bridge status --json
 tmwd-cdp-bridge version
+tmwd-cdp-bridge version --json
+tmwd-cdp-bridge upgrade
 ```
 
 `status` prints a human-readable summary. Use `status --json` for agents,
@@ -209,8 +211,17 @@ Install or refresh the unpacked extension:
 ```sh
 tmwd-cdp-bridge install edge
 tmwd-cdp-bridge install chrome
-tmwd-cdp-bridge upgrade
 ```
+
+Upgrade the installed CLI binary from GitHub Releases:
+
+```sh
+tmwd-cdp-bridge upgrade
+tmwd-cdp-bridge upgrade --json
+```
+
+On Windows, the running `.exe` may be replaced just after the `upgrade` process
+exits. Re-run `tmwd-cdp-bridge version` to confirm the active binary.
 
 Uninstall by stopping the bridge, removing the unpacked extension from
 `edge://extensions` or `chrome://extensions`, and deleting the runtime directory
