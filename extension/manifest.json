@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TMWD CDP Bridge",
-  "version": "2.1",
+  "version": "2.2",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAri55pF+NcFjJOxIG8Au84+sLjwHswbyTTyXLe00NllRBBu/M9ru69aakjDtjkfSiQcBqO09qajog8jPsE6KvyCsbgFVTDFVofK4YjpFdm0l8HpgHBbKNawd/5je3QY/FffBWPqtI+A9ji00gBddOIVpzoJORU9wjEoqKKpJZEdGt5VA93J8tVVhe+G+ddsv2yCeXCBPUSEW17adZnwKz3JzAfxZ1qW2/FlFAcb3qEQeb5fAs60mkX6BVqt0peSl/VCqpzuOZlrHZZYpvGqIfODySRXrCx8IofN+R30NmZ+iEVQ2SwygWtoGuK0Tud14Fa2vhzuvfSln30Ut0M22INwIDAQAB",
   "description": "Cookie viewer + CDP bridge",
   "permissions": [
