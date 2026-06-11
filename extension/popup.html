@@ -132,6 +132,82 @@ h1 {
   justify-content: flex-end;
 }
 
+.debug-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+}
+
+.debug-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.debug-title {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.debug-note {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 44px;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.slider {
+  width: 44px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #10141a;
+  cursor: pointer;
+}
+
+.slider::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform .14s ease, background .14s ease;
+}
+
+.switch input:checked + .slider {
+  border-color: #2c8b61;
+  background: #163728;
+}
+
+.switch input:checked + .slider::after {
+  transform: translateX(20px);
+  background: var(--green);
+}
+
+.switch input:focus-visible + .slider {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
 button {
   min-height: 28px;
   border: 1px solid #3d6b9d;
@@ -232,6 +308,19 @@ button:disabled {
           <div class="key">Origin</div><div id="tabOrigin" class="value">-</div>
           <div class="key">Tab ID</div><div id="tabId" class="value">-</div>
           <div class="key">Runtime</div><div id="runtimeId" class="value">-</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="debug-row">
+          <div class="debug-copy">
+            <div class="debug-title">Debug page badge</div>
+            <div id="badgeState" class="debug-note">Off by default. Shows a small diagnostic badge on pages.</div>
+          </div>
+          <label class="switch" title="Show page debug badge">
+            <input id="badgeToggle" type="checkbox" aria-label="Show page debug badge">
+            <span class="slider"></span>
+          </label>
         </div>
       </section>
 

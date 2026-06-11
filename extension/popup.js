@@ -1,7 +1,7 @@
 let activeTab = null;
 let cookieText = '';
-let healthUrl = 'http://127.0.0.1:18766/health';
 const hasChromeApi = typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
+const BADGE_STORAGE_KEY = 'tmwdShowPageBadge';
 
 document.addEventListener('DOMContentLoaded', async () => {
   bindActions();
@@ -10,7 +10,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderPreviewState();
     return;
   }
-  await Promise.all([loadActiveTab(), loadBridgeConfig()]);
+  chrome.storage.onChanged.addListener(handleStorageChange);
+  await Promise.all([loadActiveTab(), loadBadgeToggle()]);
   await Promise.all([probeBridge(), fetchCookies()]);
 });
 
@@ -18,6 +19,7 @@ function bindActions() {
   document.getElementById('refresh').addEventListener('click', fetchCookies);
   document.getElementById('copyCookies').addEventListener('click', copyCookies);
   document.getElementById('copyUrl').addEventListener('click', copyUrl);
+  document.getElementById('badgeToggle').addEventListener('change', updateBadgeToggle);
 }
 
 async function loadActiveTab() {
@@ -39,6 +41,8 @@ function renderPreviewState() {
   document.getElementById('bridgeStatus').dataset.state = 'bad';
   document.getElementById('bridgeStatusText').textContent = 'Preview';
   document.getElementById('out').textContent = 'Open this popup from the installed extension to read the active tab cookies.';
+  document.getElementById('badgeToggle').disabled = true;
+  document.getElementById('badgeState').textContent = 'Debug badge is available inside the installed extension.';
   setHint('Static preview mode.');
 }
 
@@ -56,10 +60,9 @@ async function probeBridge() {
   text.textContent = 'Checking';
 
   try {
-    const res = await fetch(healthUrl, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = await res.json();
-    if (body?.server !== 'tmwd-cdp-bridge') throw new Error('Unexpected service');
+    const resp = await chrome.runtime.sendMessage({ cmd: 'bridgeHealth' });
+    if (!resp?.ok) throw new Error(resp?.error || 'Bridge health unavailable');
+    const body = resp.data;
     pill.dataset.state = body.extension_connected ? 'ok' : 'pending';
     text.textContent = body.extension_connected ? 'Connected' : 'Bridge ready';
   } catch (err) {
@@ -123,12 +126,38 @@ async function copyUrl() {
   await copyText(activeTab.url, 'URL copied.', 'Clipboard unavailable.');
 }
 
-async function loadBridgeConfig() {
+async function loadBadgeToggle() {
+  const store = await chrome.storage.local.get(BADGE_STORAGE_KEY);
+  const enabled = Boolean(store[BADGE_STORAGE_KEY]);
+  setBadgeToggle(enabled);
+}
+
+async function updateBadgeToggle(event) {
+  const enabled = Boolean(event.target.checked);
+  await chrome.storage.local.set({ [BADGE_STORAGE_KEY]: enabled });
+  setBadgeToggle(enabled);
+  await notifyActiveTabBadge(enabled);
+  setHint(enabled ? 'Debug badge enabled.' : 'Debug badge disabled.');
+}
+
+function handleStorageChange(changes, areaName) {
+  if (areaName !== 'local' || !changes[BADGE_STORAGE_KEY]) return;
+  setBadgeToggle(Boolean(changes[BADGE_STORAGE_KEY].newValue));
+}
+
+function setBadgeToggle(enabled) {
+  document.getElementById('badgeToggle').checked = enabled;
+  document.getElementById('badgeState').textContent = enabled
+    ? 'On for scriptable pages. Hide from the page badge or switch off here.'
+    : 'Off by default. Shows a small diagnostic badge on pages.';
+}
+
+async function notifyActiveTabBadge(enabled) {
+  if (!activeTab?.id || !/^https?:\/\//.test(activeTab.url || '')) return;
   try {
-    const resp = await chrome.runtime.sendMessage({ cmd: 'bridgeConfig' });
-    if (resp?.ok && resp.data?.healthUrl) healthUrl = resp.data.healthUrl;
+    await chrome.tabs.sendMessage(activeTab.id, { cmd: 'tmwdBadgeState', enabled });
   } catch (_) {
-    // Keep the default URL when older extension service workers are still waking up.
+    // The page may not have this content script yet; storage still applies after reload.
   }
 }
 

@@ -286,6 +286,17 @@ async function waitForNoSession(httpPort, token, tabId, timeoutMs = 10000) {
   throw new Error(`closed tab still present: ${JSON.stringify(sessions)}`);
 }
 
+async function waitForEval(target, expression, predicate, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let last;
+  while (Date.now() < deadline) {
+    last = await evalInTarget(target.webSocketDebuggerUrl, expression);
+    if (last.ok && predicate(last.value)) return last.value;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`condition not met for eval: ${JSON.stringify(last)}`);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const appDir = await mkdtemp(path.join(tmpdir(), "tmwd-app-"));
@@ -354,13 +365,56 @@ async function main() {
     bridge.stdout.on("data", (d) => process.stdout.write(`[bridge] ${d}`));
     bridge.stderr.on("data", (d) => process.stderr.write(`[bridge] ${d}`));
     await waitForJson(`http://127.0.0.1:${httpPort}/health`);
-    await openPage(debugPort, `chrome-extension://${FIXED_EXTENSION_ID}/popup.html`).catch(() => {});
+    const popupTarget = await openPage(debugPort, `chrome-extension://${FIXED_EXTENSION_ID}/popup.html`).catch(() => null);
     const health = await waitForExtension(httpPort);
     const token = (await readFile(path.join(appDir, "token"), "utf8")).trim();
 
     const normalUrl = `http://127.0.0.1:${pagePort}/`;
     const normalTarget = await openPage(debugPort, normalUrl);
     const normalSession = await waitForSession(httpPort, token, (tab) => tab.url === normalUrl);
+    const badgeDefault = await evalInTarget(normalTarget.webSocketDebuggerUrl, `
+      Boolean(document.getElementById('__tmwd_cdp_bridge_badge'))
+    `);
+    if (badgeDefault.value !== false) {
+      throw new Error(`debug badge should be hidden by default: ${JSON.stringify(badgeDefault)}`);
+    }
+    const requestIds = await evalInTarget(normalTarget.webSocketDebuggerUrl, `
+      (async () => {
+        const ids = ['__tmwd_cdp_bridge_request', '__ljq_045ef1'];
+        const results = [];
+        for (const id of ids) {
+          const el = document.createElement('script');
+          el.id = id;
+          el.type = 'application/json';
+          el.textContent = JSON.stringify({ cmd: 'cookies', url: location.href });
+          document.documentElement.appendChild(el);
+          for (let i = 0; i < 40; i += 1) {
+            await new Promise(r => setTimeout(r, 50));
+            try {
+              const body = JSON.parse(el.textContent || '{}');
+              if (Object.prototype.hasOwnProperty.call(body, 'ok')) {
+                results.push({ id, ok: body.ok, hasData: Array.isArray(body.data), error: body.error || null });
+                break;
+              }
+            } catch (_) {}
+          }
+          el.remove();
+        }
+        return results;
+      })()
+    `);
+    if (!requestIds.ok || requestIds.value?.length !== 2 || !requestIds.value.every((r) => r.ok === true && r.hasData === true)) {
+      throw new Error(`request id compatibility failed: ${JSON.stringify(requestIds)}`);
+    }
+    if (!popupTarget?.webSocketDebuggerUrl) throw new Error("popup target did not expose DevTools websocket");
+    await evalInTarget(popupTarget.webSocketDebuggerUrl, `
+      chrome.storage.local.set({ tmwdShowPageBadge: true })
+    `);
+    const badgeEnabled = await waitForEval(
+      normalTarget,
+      `Boolean(document.getElementById('__tmwd_cdp_bridge_badge'))`,
+      (value) => value === true,
+    );
     const normalExec = await rpc(httpPort, token, {
       cmd: "execute_js",
       request_id: "normal-exec",
@@ -478,6 +532,11 @@ async function main() {
       normal: {
         session_id: normalSession.id,
         execute_js: normalExec.r.data,
+      },
+      debug_badge: {
+        hidden_by_default: badgeDefault.value === false,
+        visible_when_enabled: badgeEnabled === true,
+        request_ids: requestIds.value.map((r) => r.id),
       },
       cdp_direct: cdpDirect.r.data,
       fallback_requested: {

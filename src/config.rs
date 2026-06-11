@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 pub const APP_NAME: &str = "tmwd-cdp-bridge";
 pub const DEFAULT_WS_PORT: u16 = 18765;
 pub const DEFAULT_HTTP_PORT: u16 = 18766;
-pub const EXTENSION_VERSION: &str = "2.2";
+pub const EXTENSION_VERSION: &str = "2.3";
 pub const ALLOWED_EXTENSION_ID: &str = "eghifjkffmcmffejmaaeicejpfopplem";
 pub const ALLOWED_EXTENSION_ORIGIN: &str = "chrome-extension://eghifjkffmcmffejmaaeicejpfopplem";
 
@@ -162,10 +162,10 @@ mod tests {
             allowed_extension_origin: ALLOWED_EXTENSION_ORIGIN.to_string(),
         };
         assert_eq!(cfg.installed_extension_version().unwrap(), None);
-        fs::write(cfg.version_path(), "2.2\n").unwrap();
+        fs::write(cfg.version_path(), "2.3\n").unwrap();
         assert_eq!(
             cfg.installed_extension_version().unwrap(),
-            Some("2.2".to_string())
+            Some("2.3".to_string())
         );
     }
 

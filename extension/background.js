@@ -17,6 +17,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 async function handleExtMessage(msg, sender) {
   if (msg.cmd === 'bridgeConfig') return await handleBridgeConfig();
+  if (msg.cmd === 'bridgeHealth') return await handleBridgeHealth(sender);
   if (msg.cmd === 'cookies') return await handleCookies(msg, sender);
   if (msg.cmd === 'cdp') return await handleCDP(msg, sender);
   if (msg.cmd === 'batch') return await handleBatch(msg, sender);
@@ -110,6 +111,33 @@ async function handleBridgeConfig() {
   } catch (e) {
     return { ok: false, error: e.message };
   }
+}
+
+async function handleBridgeHealth(sender) {
+  const senderTab = bridgeSenderTab(sender);
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 2000);
+    const { healthUrl } = await bridgeUrls();
+    const res = await fetch(healthUrl, { cache: 'no-store', signal: ctrl.signal });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const body = await res.json();
+    if (body?.server !== 'tmwd-cdp-bridge') return { ok: false, error: 'Unexpected service' };
+    if (senderTab) body.sender_tab = senderTab;
+    return { ok: true, data: body };
+  } catch (e) {
+    return { ok: false, error: e.message || String(e), data: senderTab ? { sender_tab: senderTab } : null };
+  }
+}
+
+function bridgeSenderTab(sender) {
+  if (!sender?.tab) return null;
+  return {
+    id: sender.tab.id,
+    window_id: sender.tab.windowId,
+    url: sender.tab.url,
+    title: sender.tab.title,
+  };
 }
 
 async function handleBatch(msg, sender) {
