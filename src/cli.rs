@@ -39,7 +39,7 @@ enum Command {
     Repair { browser: Option<Browser> },
     #[command(about = "Upgrade the tmwd-cdp-bridge CLI binary from GitHub Releases")]
     Upgrade {
-        #[arg(long, help = "Release tag to install, for example v0.1.1")]
+        #[arg(long, help = "Release tag to install, for example v0.1.2")]
         version: Option<String>,
         #[arg(long, help = "GitHub repo in owner/name form")]
         repo: Option<String>,

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-VERSION="${TMWD_CDP_BRIDGE_VERSION:-v0.1.1}"
+VERSION="${TMWD_CDP_BRIDGE_VERSION:-v0.1.2}"
 REPO="${TMWD_CDP_BRIDGE_REPO:-koda-claw/tmwd-cdp-bridge}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 SKILL_DIR="${SKILL_DIR:-}"

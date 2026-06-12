@@ -68,7 +68,7 @@ Examples:
 ```sh
 # macOS arm64
 curl -L -o tmwd-cdp-bridge.tar.gz \
-  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.1/tmwd-cdp-bridge-macos-arm64.tar.gz
+  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.2/tmwd-cdp-bridge-macos-arm64.tar.gz
 tar -xzf tmwd-cdp-bridge.tar.gz
 chmod +x tmwd-cdp-bridge
 mkdir -p "$HOME/.local/bin"
@@ -76,7 +76,7 @@ mv tmwd-cdp-bridge "$HOME/.local/bin/"
 
 # Linux x64
 curl -L -o tmwd-cdp-bridge.tar.gz \
-  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.1/tmwd-cdp-bridge-linux-x64.tar.gz
+  https://github.com/koda-claw/tmwd-cdp-bridge/releases/download/v0.1.2/tmwd-cdp-bridge-linux-x64.tar.gz
 tar -xzf tmwd-cdp-bridge.tar.gz
 chmod +x tmwd-cdp-bridge
 mkdir -p "$HOME/.local/bin"
