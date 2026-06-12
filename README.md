@@ -248,9 +248,10 @@ browser profiles, load the unpacked extension, start temporary bridge servers on
 random ports, open local test pages or requested URLs, and verify protocol
 behavior. They are not the workflow for real user tasks.
 
-By default the script uses Microsoft Edge on macOS because it reliably honors
-`--load-extension` in this environment. Override with `BROWSER_BIN` or
-`CHROME_BIN` to test a specific Chromium-family browser.
+The real browser smoke loads the unpacked extension through the browser-level
+DevTools `Extensions.loadUnpacked` command. This keeps Google Chrome 137+ working
+after branded Chrome removed command-line unpacked extension loading. Override
+with `BROWSER_BIN` or `CHROME_BIN` to test a specific Chromium-family browser.
 
 For release gates and CI details, see [docs/development.md](docs/development.md).
 

@@ -127,8 +127,9 @@ layout, and copy that implies Agent control when only injection is confirmed.
 - `node scripts/smoke_no_extension.mjs` passes.
 - `node scripts/skill_minimal_flow.mjs` passes.
 - `node scripts/smoke_real_browser.mjs` passes on Edge.
-- Chrome real browser smoke passes when Chrome is available or is recorded as a
-  deferred release-gate check.
+- Chrome real browser smoke passes when Chrome is available. Chrome 137+ should
+  be loaded through DevTools `Extensions.loadUnpacked`, not command-line
+  `--load-extension`.
 
 ## Release Notes Checklist
 
@@ -144,9 +145,8 @@ Current implementation result:
 - Edge real browser smoke passed with default badge hidden, badge visible after
   enabling `tmwdShowPageBadge`, preferred request id working, legacy request id
   working, and extension reload/reconnect still healthy.
-- Chrome temporary-profile smoke was attempted with
-  `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, but the
-  unpacked extension service worker started under a random extension id instead
-  of the fixed id `eghifjkffmcmffejmaaeicejpfopplem`, so the bridge correctly
-  did not accept the connection. Treat Chrome as a deferred manual release-gate
-  check for this iteration, consistent with `docs/development.md`.
+- Chrome real browser smoke passed with
+  `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` after switching
+  the harness from command-line extension loading to DevTools
+  `Extensions.loadUnpacked`; the fixed id
+  `eghifjkffmcmffejmaaeicejpfopplem` was preserved and accepted by the bridge.

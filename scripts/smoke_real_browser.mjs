@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const FIXED_EXTENSION_ID = "eghifjkffmcmffejmaaeicejpfopplem";
+const EXPECTED_EXTENSION_ID = "eghifjkffmcmffejmaaeicejpfopplem";
 const DEFAULT_BROWSER =
   process.env.BROWSER_BIN ||
   process.env.CHROME_BIN ||
@@ -66,6 +66,40 @@ function freePort() {
   });
 }
 
+function browserLaunchArgs(profileDir, debugPort, extensionDir = null) {
+  const args = [
+    `--user-data-dir=${profileDir}`,
+    `--remote-debugging-port=${debugPort}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-features=DialMediaRouteProvider",
+    "about:blank",
+  ];
+  if (extensionDir) {
+    args.splice(2, 0, `--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`);
+  }
+  return args;
+}
+
+function spawnBrowser(browserBin, browserArgs) {
+  const browser = spawn(browserBin, browserArgs, { stdio: ["ignore", "pipe", "pipe"] });
+  browser.stdout.on("data", (d) => process.stdout.write(`[browser] ${d}`));
+  browser.stderr.on("data", (d) => process.stderr.write(`[browser] ${d}`));
+  return browser;
+}
+
+async function stopProcess(child) {
+  if (!child || child.exitCode !== null) return;
+  child.kill("SIGKILL");
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, 2000);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 async function tryFetchJson(url) {
   try {
     const res = await fetch(url);
@@ -82,7 +116,7 @@ async function tryFetchJson(url) {
   }
 }
 
-async function debugTargets(debugPort) {
+async function debugTargets(debugPort, extensionId = EXPECTED_EXTENSION_ID) {
   const listed = await tryFetchJson(`http://127.0.0.1:${debugPort}/json/list`);
   if (!listed.ok || !Array.isArray(listed.json)) return listed;
   const targets = listed.json.map((t) => ({
@@ -93,13 +127,14 @@ async function debugTargets(debugPort) {
     has_websocket: Boolean(t.webSocketDebuggerUrl),
   }));
   const extensionTargets = targets.filter((t) => String(t.url || "").startsWith("chrome-extension://"));
-  const fixedIdTargets = targets.filter((t) => String(t.url || "").startsWith(`chrome-extension://${FIXED_EXTENSION_ID}/`));
+  const selectedIdTargets = targets.filter((t) => String(t.url || "").startsWith(`chrome-extension://${extensionId}/`));
   return {
     ok: true,
     status: listed.status,
     target_count: targets.length,
     extension_target_count: extensionTargets.length,
-    fixed_id_target_count: fixedIdTargets.length,
+    selected_extension_id: extensionId,
+    selected_id_target_count: selectedIdTargets.length,
     extension_targets: extensionTargets,
     all_targets: targets,
   };
@@ -139,21 +174,60 @@ async function evalInTarget(webSocketDebuggerUrl, expression) {
   }
 }
 
-async function debugExtensionRuntime(debugPort) {
+async function callBrowser(debugPort, method, params = {}) {
+  const version = await waitForJson(`http://127.0.0.1:${debugPort}/json/version`);
+  const browserWs = version.webSocketDebuggerUrl;
+  if (!browserWs) {
+    return { ok: false, error: "browser DevTools websocket is unavailable" };
+  }
+  const ws = new WebSocket(browserWs);
+  await new Promise((resolve, reject) => {
+    ws.addEventListener("open", resolve, { once: true });
+    ws.addEventListener("error", reject, { once: true });
+  });
+  try {
+    const msgId = 1;
+    ws.send(JSON.stringify({ id: msgId, method, params }));
+    return await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${method} timed out`)), 5000);
+      const onMessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.id !== msgId) return;
+        clearTimeout(timer);
+        ws.removeEventListener("message", onMessage);
+        if (msg.error) resolve({ ok: false, error: msg.error });
+        else resolve({ ok: true, result: msg.result || {} });
+      };
+      ws.addEventListener("message", onMessage);
+    });
+  } finally {
+    ws.close();
+  }
+}
+
+async function loadUnpackedExtension(debugPort, extensionDir) {
+  const loaded = await callBrowser(debugPort, "Extensions.loadUnpacked", { path: extensionDir });
+  if (loaded.ok && loaded.result?.id) {
+    return { ok: true, extensionId: loaded.result.id, source: "cdp_extensions_load_unpacked" };
+  }
+  return loaded;
+}
+
+async function debugExtensionRuntime(debugPort, extensionId = EXPECTED_EXTENSION_ID) {
   const listed = await tryFetchJson(`http://127.0.0.1:${debugPort}/json/list`);
   if (!listed.ok || !Array.isArray(listed.json)) return listed;
-  const fixedTargets = listed.json.filter((t) =>
-    String(t.url || "").startsWith(`chrome-extension://${FIXED_EXTENSION_ID}/`) &&
+  const selectedTargets = listed.json.filter((t) =>
+    String(t.url || "").startsWith(`chrome-extension://${extensionId}/`) &&
     t.webSocketDebuggerUrl
   );
-  const target = fixedTargets.find((t) => t.type === "service_worker") ||
-    fixedTargets.find((t) => t.type === "background_page") ||
-    fixedTargets.find((t) => t.type === "page");
+  const target = selectedTargets.find((t) => t.type === "service_worker") ||
+    selectedTargets.find((t) => t.type === "background_page") ||
+    selectedTargets.find((t) => t.type === "page");
   if (!target) {
     return {
       ok: false,
-      error: `no DevTools target for fixed extension id ${FIXED_EXTENSION_ID}`,
-      fixed_target_count: fixedTargets.length,
+      error: `no DevTools target for extension id ${extensionId}`,
+      selected_target_count: selectedTargets.length,
     };
   }
   const manifest = await evalInTarget(target.webSocketDebuggerUrl, "chrome.runtime.getManifest()");
@@ -180,15 +254,17 @@ async function printFailureDiagnostics(args, paths) {
   if (!args.debugOnFailure) return;
   const health = await tryFetchJson(`http://127.0.0.1:${paths.httpPort}/health`);
   const version = await tryFetchJson(`http://127.0.0.1:${paths.debugPort}/json/version`);
-  const targets = await debugTargets(paths.debugPort);
-  const extensionRuntime = await debugExtensionRuntime(paths.debugPort);
+  const targets = await debugTargets(paths.debugPort, paths.extensionId || EXPECTED_EXTENSION_ID);
+  const extensionRuntime = await debugExtensionRuntime(paths.debugPort, paths.extensionId || EXPECTED_EXTENSION_ID);
   console.error("[smoke] failure diagnostics:");
   console.error(JSON.stringify({
     browser: args.browserBin,
-    fixed_extension_id: FIXED_EXTENSION_ID,
+    expected_extension_id: EXPECTED_EXTENSION_ID,
+    selected_extension_id: paths.extensionId || null,
     app_dir: paths.appDir,
     profile_dir: paths.profileDir,
     extension_dir: paths.extensionDir,
+    extension_load: paths.extensionLoad || null,
     ws_port: paths.wsPort,
     http_port: paths.httpPort,
     debug_port: paths.debugPort,
@@ -226,6 +302,40 @@ async function openPage(debugPort, url) {
 async function closeTarget(debugPort, targetId) {
   const res = await fetch(`http://127.0.0.1:${debugPort}/json/close/${targetId}`);
   if (!res.ok) throw new Error(`close target failed: ${res.status}: ${await res.text()}`);
+}
+
+async function wakeExpectedExtension(debugPort) {
+  return await openPage(debugPort, `chrome-extension://${EXPECTED_EXTENSION_ID}/popup.html`).catch(() => null);
+}
+
+async function discoverTmwdExtension(debugPort, preferredExtensionId = null) {
+  const deadline = Date.now() + 10000;
+  let last = [];
+  while (Date.now() < deadline) {
+    const targets = await fetch(`http://127.0.0.1:${debugPort}/json/list`).then((r) => r.json());
+    const candidates = targets.filter((t) =>
+      String(t.url || "").startsWith("chrome-extension://") && t.webSocketDebuggerUrl
+    );
+    last = candidates.map((t) => ({ type: t.type, title: t.title, url: t.url }));
+    for (const target of candidates) {
+      const extensionId = String(target.url).match(/^chrome-extension:\/\/([a-p]{32})\//)?.[1];
+      if (!extensionId) continue;
+      if (preferredExtensionId && extensionId !== preferredExtensionId) continue;
+      if (target.type === "service_worker" && String(target.url || "").endsWith("/background.js")) {
+        return { extensionId, target, manifest: null, source: "service_worker" };
+      }
+      try {
+        const manifest = await evalInTarget(target.webSocketDebuggerUrl, `
+          chrome.runtime?.getManifest ? chrome.runtime.getManifest() : null
+        `);
+        if (manifest?.value?.name === "TMWD CDP Bridge") {
+          return { extensionId, target, manifest: manifest.value, source: "runtime_manifest" };
+        }
+      } catch (_) {}
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`could not discover TMWD extension${preferredExtensionId ? ` ${preferredExtensionId}` : ""}; targets=${JSON.stringify(last)}`);
 }
 
 async function rpc(httpPort, token, body) {
@@ -310,6 +420,9 @@ async function main() {
   let bridge;
   let pageServer;
   let failed = false;
+  let extensionId = null;
+  let extensionDiscovery = null;
+  let extensionLoad = null;
 
   try {
     pageServer = http.createServer((req, res) => {
@@ -338,19 +451,27 @@ async function main() {
         .replace("const DEFAULT_HEALTH_URL = 'http://127.0.0.1:18766/health';", `const DEFAULT_HEALTH_URL = 'http://127.0.0.1:${httpPort}/health';`),
     );
 
-    browser = spawn(args.browserBin, [
-      `--user-data-dir=${profileDir}`,
-      `--remote-debugging-port=${debugPort}`,
-      `--disable-extensions-except=${extensionDir}`,
-      `--load-extension=${extensionDir}`,
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-features=DialMediaRouteProvider",
-      "about:blank",
-    ], { stdio: ["ignore", "pipe", "pipe"] });
-    browser.stdout.on("data", (d) => process.stdout.write(`[browser] ${d}`));
-    browser.stderr.on("data", (d) => process.stderr.write(`[browser] ${d}`));
+    browser = spawnBrowser(args.browserBin, browserLaunchArgs(profileDir, debugPort));
     await waitForJson(`http://127.0.0.1:${debugPort}/json/version`);
+    extensionLoad = await loadUnpackedExtension(debugPort, extensionDir);
+    if (!extensionLoad.ok) {
+      const cdpError = extensionLoad;
+      await stopProcess(browser);
+      browser = spawnBrowser(args.browserBin, browserLaunchArgs(profileDir, debugPort, extensionDir));
+      await waitForJson(`http://127.0.0.1:${debugPort}/json/version`);
+      extensionLoad = {
+        ok: false,
+        source: "launch_flags_fallback",
+        cdp_error: cdpError.error || cdpError,
+      };
+    }
+    const preferredExtensionId = extensionLoad.ok ? extensionLoad.extensionId : null;
+    const wakeTarget = !preferredExtensionId || preferredExtensionId === EXPECTED_EXTENSION_ID
+      ? await wakeExpectedExtension(debugPort)
+      : null;
+    extensionDiscovery = await discoverTmwdExtension(debugPort, preferredExtensionId);
+    extensionId = extensionDiscovery.extensionId;
+    const allowedOrigin = `chrome-extension://${extensionId}`;
 
     bridge = spawn("cargo", ["run", "--", "start"], {
       cwd: root,
@@ -359,13 +480,16 @@ async function main() {
         CDP_BRIDGE_APP_DIR: appDir,
         CDP_BRIDGE_WS_PORT: String(wsPort),
         CDP_BRIDGE_HTTP_PORT: String(httpPort),
+        CDP_BRIDGE_ALLOWED_EXTENSION_ORIGIN: allowedOrigin,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
     bridge.stdout.on("data", (d) => process.stdout.write(`[bridge] ${d}`));
     bridge.stderr.on("data", (d) => process.stderr.write(`[bridge] ${d}`));
     await waitForJson(`http://127.0.0.1:${httpPort}/health`);
-    const popupTarget = await openPage(debugPort, `chrome-extension://${FIXED_EXTENSION_ID}/popup.html`).catch(() => null);
+    const popupTarget = extensionId === EXPECTED_EXTENSION_ID && wakeTarget?.webSocketDebuggerUrl
+      ? wakeTarget
+      : await openPage(debugPort, `chrome-extension://${extensionId}/popup.html`).catch(() => null);
     const health = await waitForExtension(httpPort);
     const token = (await readFile(path.join(appDir, "token"), "utf8")).trim();
 
@@ -527,7 +651,17 @@ async function main() {
     console.log(JSON.stringify({
       status: "ok",
       browser: args.browserBin,
-      extension_id: FIXED_EXTENSION_ID,
+      extension_id: extensionId,
+      expected_extension_id: EXPECTED_EXTENSION_ID,
+      extension_id_matches_expected: extensionId === EXPECTED_EXTENSION_ID,
+      extension_load: {
+        source: extensionLoad?.source || "launch_flags",
+        cdp_loaded: extensionLoad?.ok === true,
+      },
+      extension_discovery: {
+        source: extensionDiscovery.source,
+        target_type: extensionDiscovery.target?.type,
+      },
       health,
       normal: {
         session_id: normalSession.id,
@@ -570,6 +704,8 @@ async function main() {
       wsPort,
       httpPort,
       debugPort,
+      extensionId,
+      extensionLoad,
     });
     throw err;
   } finally {

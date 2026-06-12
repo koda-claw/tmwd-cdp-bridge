@@ -31,7 +31,7 @@ python3 scripts/validate_skill.py skills/tmwd-cdp-bridge
 - No-extension smoke covering start/status/stop, HTTP auth, and the `NO_EXTENSION` error path
 - Repository-local Skill validation
 
-Browser-backed smoke is intentionally not a required CI job because hosted CI browsers can be inconsistent with unpacked MV3 extension loading. Treat real browser smoke as a release gate.
+Browser-backed smoke is intentionally not a required CI job because hosted CI browsers can be inconsistent with unpacked MV3 extension loading. Treat real browser smoke as a release gate. The local harness loads unpacked extensions through the browser-level DevTools `Extensions.loadUnpacked` command so Google Chrome 137+ does not depend on removed `--load-extension` command-line behavior.
 
 ## Harness Boundary
 
@@ -41,7 +41,7 @@ Do not use these scripts for real user tasks or logged-in pages. Real tasks must
 
 Useful harnesses:
 
-- `scripts/smoke_real_browser.mjs`: starts a temporary browser and bridge, loads the real extension, and verifies normal JS, direct CDP, explicit CDP fallback, tab close, and extension reload/reconnect.
+- `scripts/smoke_real_browser.mjs`: starts a temporary browser and bridge, loads the real extension through DevTools `Extensions.loadUnpacked`, and verifies normal JS, direct CDP, explicit CDP fallback, tab close, and extension reload/reconnect.
 - `scripts/smoke_no_extension.mjs`: starts the debug binary without a browser extension and verifies cross-platform lifecycle and auth behavior.
 - `scripts/skill_minimal_flow.mjs`: validates the generic Agent minimum flow using only CLI, token file, health, and RPC.
 - `scripts/soak_bridge.mjs`: probes an already running bridge for a configurable duration and interval.
@@ -78,8 +78,8 @@ node scripts/smoke_real_browser.mjs
 BROWSER_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node scripts/smoke_real_browser.mjs
 ```
 
-If Chrome does not connect from the temporary `--load-extension` profile, also
-verify a manually installed Chrome profile:
+If a browser build does not support DevTools `Extensions.loadUnpacked`, also
+verify a manually installed Chrome or Edge profile:
 
 ```sh
 cargo run -- install chrome
