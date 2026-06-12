@@ -194,6 +194,8 @@ tmwd-cdp-bridge stop
 tmwd-cdp-bridge install edge
 tmwd-cdp-bridge install chrome
 tmwd-cdp-bridge repair edge
+tmwd-cdp-bridge doctor
+tmwd-cdp-bridge doctor --json
 tmwd-cdp-bridge status
 tmwd-cdp-bridge status --json
 tmwd-cdp-bridge version
@@ -201,8 +203,10 @@ tmwd-cdp-bridge version --json
 tmwd-cdp-bridge upgrade
 ```
 
-`status` prints a human-readable summary. Use `status --json` for agents,
-scripts, and CI checks.
+`doctor` is the first troubleshooting command. It checks local prerequisites,
+running bridge identity, extension connection state, and safe recovery actions.
+Use `doctor --json` for agents, scripts, and CI checks. `status` remains a
+compact runtime snapshot.
 
 ## Install, Upgrade, Uninstall
 

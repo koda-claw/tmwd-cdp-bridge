@@ -84,11 +84,13 @@ verify a manually installed Chrome or Edge profile:
 ```sh
 cargo run -- install chrome
 cargo run -- start
+cargo run -- doctor --json
 cargo run -- status --json
 ```
 
 Then open `chrome://extensions`, load the repository `extension/` directory as
-an unpacked extension, and confirm `status --json` reports
+an unpacked extension, and confirm `doctor --json` reports top-level `ok` and
+`status --json` reports
 `extension_connected: true` for `eghifjkffmcmffejmaaeicejpfopplem`. Use the
 normal token file plus `/v1/rpc` flow to verify at least one page read, one
 direct CDP command, and one explicit `fallback:"cdp"` command.

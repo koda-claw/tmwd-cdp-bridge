@@ -47,12 +47,33 @@ If you are already inside this source checkout, you may replace
 Track whether you started the bridge in this task. Stop only a bridge you started; reuse matching existing bridges.
 
 ```sh
+tmwd-cdp-bridge doctor --json
+```
+
+Use plain `tmwd-cdp-bridge doctor` only for human-readable troubleshooting. If
+`doctor` is unavailable because the installed binary is older, fall back to:
+
+```sh
 tmwd-cdp-bridge status --json
 ```
 
-Use plain `tmwd-cdp-bridge status` only for human-readable troubleshooting.
+For `doctor --json`, branch on `status` and `recovery`:
 
-If no compatible server is running:
+- `ok`: proceed to `/health`, token read, and RPC.
+- `degraded`: follow only listed local recovery actions, then rerun `doctor --json`.
+- `fail`: do not proceed with page work; follow install/version/port recovery first.
+
+Common recovery actions:
+
+- `START_BRIDGE`: run `tmwd-cdp-bridge start`.
+- `RUN_INSTALL_BROWSER`: run `tmwd-cdp-bridge install edge` or `tmwd-cdp-bridge install chrome`.
+- `LOAD_UNPACKED_EXTENSION`: load the printed extension directory in the browser extensions page.
+- `RELOAD_EXTENSION`: reload the unpacked extension in the browser extensions page.
+- `DISABLE_LEGACY_EXTENSION`: ask the user to disable old extension id `aikfggdiblmijobpgdapacebmcjknbof`.
+- `STOP_CONFLICTING_PROCESS`: ask before stopping anything; never kill unrelated processes automatically.
+- `USE_DIFFERENT_PORT`: set both `CDP_BRIDGE_HTTP_PORT` and `CDP_BRIDGE_WS_PORT`.
+
+If no compatible server is running and doctor lists `START_BRIDGE`:
 
 ```sh
 tmwd-cdp-bridge start
@@ -108,7 +129,7 @@ If `extension_connected` is false, open/reload the extension and re-check health
 ## Real Task Flow
 
 1. Confirm user intent for browser access if needed.
-2. `status`; reuse a matching server or start one and remember you started it.
+2. Run `doctor --json`; reuse a matching server or start one when recovery lists `START_BRIDGE`, and remember you started it.
 3. Confirm `/health` identity, fixed extension ID, and `extension_connected:true`.
 4. Read token into a variable without printing it.
 5. List or find sessions.
@@ -227,7 +248,7 @@ If `aikfggdiblmijobpgdapacebmcjknbof` is enabled, tell the user to disable it in
 
 Some Agent hosts support activate/deactivate hooks. They are optional. Hook behavior must be equivalent to the shell flow:
 
-- activate: run `status`; start only if no compatible bridge is running; never hide version/port conflicts.
+- activate: run `doctor --json`; start only if no compatible bridge is running and recovery lists `START_BRIDGE`; never hide version/port conflicts.
 - deactivate: stop only if this Agent started the bridge; otherwise leave it running.
 
 Agents without hooks should use the shell commands above.

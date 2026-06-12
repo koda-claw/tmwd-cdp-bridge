@@ -9,6 +9,7 @@ use tokio::time::{Duration, sleep};
 use tmwd_cdp_bridge::{
     auth,
     config::{BridgeConfig, EXTENSION_VERSION},
+    doctor::{self, CheckKind, CheckStatus, DoctorReport, DoctorStatus, RecoveryAction},
     install, self_update, server,
 };
 
@@ -17,7 +18,7 @@ use tmwd_cdp_bridge::{
     author,
     version,
     about = "Local Chrome/Edge CDP bridge for agents",
-    long_about = "Run and inspect a localhost-only bridge for the bundled TMWD CDP Bridge browser extension.\n\nTypical flow:\n  tmwd-cdp-bridge install edge\n  tmwd-cdp-bridge start\n  tmwd-cdp-bridge status --json"
+    long_about = "Run and inspect a localhost-only bridge for the bundled TMWD CDP Bridge browser extension.\n\nTypical flow:\n  tmwd-cdp-bridge doctor --json\n  tmwd-cdp-bridge install edge\n  tmwd-cdp-bridge start"
 )]
 struct Args {
     #[command(subcommand)]
@@ -48,6 +49,11 @@ enum Command {
     },
     #[command(about = "Show bridge, extension, token, and port status")]
     Status {
+        #[arg(long, help = "Emit machine-readable JSON")]
+        json: bool,
+    },
+    #[command(about = "Diagnose local install/readiness and print recovery guidance")]
+    Doctor {
         #[arg(long, help = "Emit machine-readable JSON")]
         json: bool,
     },
@@ -119,6 +125,7 @@ pub async fn run() -> Result<()> {
             Ok(())
         }
         Command::Status { json } => status(config, json).await,
+        Command::Doctor { json } => doctor(config, json).await,
         Command::Version { json } => {
             if json {
                 println!(
@@ -138,6 +145,115 @@ impl Browser {
         match self {
             Browser::Edge => "edge",
             Browser::Chrome => "chrome",
+        }
+    }
+}
+
+async fn doctor(config: BridgeConfig, json_output: bool) -> Result<()> {
+    let report = doctor::diagnose(&config).await;
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_human_doctor(&report);
+    }
+    Ok(())
+}
+
+fn print_human_doctor(report: &DoctorReport) {
+    println!("tmwd-cdp-bridge doctor {}", env!("CARGO_PKG_VERSION"));
+    println!("Status:  {}", doctor_status_label(report.status));
+    println!("Summary: {}", report.summary);
+    println!();
+
+    for kind in [
+        CheckKind::Prerequisite,
+        CheckKind::Readiness,
+        CheckKind::Advisory,
+    ] {
+        println!("{}:", check_kind_label(kind));
+        for check in report.checks.iter().filter(|check| check.kind == kind) {
+            println!(
+                "  {} {:<22} {}",
+                check_status_marker(check.status),
+                check.id,
+                check.message
+            );
+        }
+        println!();
+    }
+
+    if report.recovery.is_empty() {
+        println!("Recovery: no action needed.");
+    } else {
+        println!("Recovery:");
+        for action in &report.recovery {
+            println!("  - {}", recovery_action_text(*action));
+        }
+    }
+    println!();
+    println!("Machine-readable: tmwd-cdp-bridge doctor --json");
+}
+
+fn doctor_status_label(status: DoctorStatus) -> &'static str {
+    match status {
+        DoctorStatus::Ok => "ok",
+        DoctorStatus::Degraded => "degraded",
+        DoctorStatus::Fail => "fail",
+    }
+}
+
+fn check_kind_label(kind: CheckKind) -> &'static str {
+    match kind {
+        CheckKind::Prerequisite => "Prerequisites",
+        CheckKind::Readiness => "Readiness",
+        CheckKind::Advisory => "Advisory",
+    }
+}
+
+fn check_status_marker(status: CheckStatus) -> &'static str {
+    match status {
+        CheckStatus::Ok => "[ok]",
+        CheckStatus::Warn => "[warn]",
+        CheckStatus::Fail => "[fail]",
+        CheckStatus::Unknown => "[unknown]",
+    }
+}
+
+fn recovery_action_text(action: RecoveryAction) -> &'static str {
+    match action {
+        RecoveryAction::StartBridge => "start the bridge with `tmwd-cdp-bridge start`",
+        RecoveryAction::RunInstallEdge => {
+            "refresh Edge extension files with `tmwd-cdp-bridge install edge`"
+        }
+        RecoveryAction::RunInstallChrome => {
+            "refresh Chrome extension files with `tmwd-cdp-bridge install chrome`"
+        }
+        RecoveryAction::RunInstallBrowser => {
+            "refresh extension files with `tmwd-cdp-bridge install edge` or `tmwd-cdp-bridge install chrome`"
+        }
+        RecoveryAction::LoadUnpackedExtension => {
+            "load the printed extension directory in edge://extensions or chrome://extensions"
+        }
+        RecoveryAction::ReloadExtension => {
+            "reload the unpacked extension in edge://extensions or chrome://extensions"
+        }
+        RecoveryAction::DisableLegacyExtension => {
+            "disable old extension id aikfggdiblmijobpgdapacebmcjknbof if it is installed"
+        }
+        RecoveryAction::StopConflictingProcess => {
+            "stop the process using the configured bridge port after confirming it is safe"
+        }
+        RecoveryAction::UseDifferentPort => {
+            "set CDP_BRIDGE_HTTP_PORT and CDP_BRIDGE_WS_PORT to unused local ports"
+        }
+        RecoveryAction::UpgradeBinary => {
+            "upgrade or restart so the running bridge matches this CLI"
+        }
+        RecoveryAction::FixTokenFile => {
+            "start the bridge once to recreate the token or fix token file permissions"
+        }
+        RecoveryAction::RepairInstall => {
+            "repair local app data permissions/files, then rerun doctor"
         }
     }
 }

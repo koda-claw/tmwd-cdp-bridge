@@ -1,15 +1,18 @@
 # Troubleshooting
 
-## Check Status First
+## Run Doctor First
 
 ```sh
+tmwd-cdp-bridge doctor
+tmwd-cdp-bridge doctor --json
 tmwd-cdp-bridge status
 tmwd-cdp-bridge status --json
 curl -s http://127.0.0.1:18766/health
 ```
 
 If working from source, replace `tmwd-cdp-bridge` with `cargo run --`. Use
-`status` for a readable summary and `status --json` for scripts or agents.
+`doctor` for a readable diagnostic report and `doctor --json` for scripts or
+agents. `status --json` remains useful as a compact runtime snapshot.
 
 ## Port Is In Use
 

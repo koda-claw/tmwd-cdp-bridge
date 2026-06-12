@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -70,6 +70,7 @@ async function main() {
   let bridge = null;
   try {
     const manifest = JSON.parse(await readFile(path.join(root, "extension", "manifest.json"), "utf8"));
+    await mkdir(path.join(appDir, "extension"));
     await writeFile(path.join(appDir, "version"), manifest.version);
     const env = {
       ...process.env,
@@ -78,10 +79,13 @@ async function main() {
       CDP_BRIDGE_HTTP_PORT: String(httpPort),
     };
 
-    const initialStatus = await runCli(["status", "--json"], env);
-    if (initialStatus.code !== 0) throw new Error(`status failed: ${initialStatus.stderr}`);
-    const initial = JSON.parse(initialStatus.stdout);
-    if (initial.server?.running !== false) throw new Error(`expected no running server: ${initialStatus.stdout}`);
+    const initialDoctor = await runCli(["doctor", "--json"], env);
+    if (initialDoctor.code !== 0) throw new Error(`doctor failed: ${initialDoctor.stderr}`);
+    const initial = JSON.parse(initialDoctor.stdout);
+    if (initial.status !== "degraded") throw new Error(`expected degraded doctor report: ${initialDoctor.stdout}`);
+    if (!initial.recovery?.includes("START_BRIDGE")) {
+      throw new Error(`expected START_BRIDGE recovery: ${initialDoctor.stdout}`);
+    }
 
     bridge = spawn(bridgeBin(), ["start"], { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] });
     bridge.stdout.on("data", (d) => process.stdout.write(`[bridge] ${d}`));
@@ -90,6 +94,13 @@ async function main() {
     const health = await waitForJson(`http://127.0.0.1:${httpPort}/health`);
     if (health.server !== "tmwd-cdp-bridge") throw new Error(`bad health: ${JSON.stringify(health)}`);
     if (health.extension_id !== "eghifjkffmcmffejmaaeicejpfopplem") throw new Error(`bad extension id: ${JSON.stringify(health)}`);
+
+    const runningDoctor = await runCli(["doctor", "--json"], env);
+    if (runningDoctor.code !== 0) throw new Error(`running doctor failed: ${runningDoctor.stderr}`);
+    const running = JSON.parse(runningDoctor.stdout);
+    if (running.status !== "degraded" || !running.recovery?.includes("RELOAD_EXTENSION")) {
+      throw new Error(`expected running bridge to need extension reload: ${runningDoctor.stdout}`);
+    }
 
     const token = (await readFile(path.join(appDir, "token"), "utf8")).trim();
     if (!token) throw new Error("empty token");
@@ -119,6 +130,11 @@ async function main() {
         server: health.server,
         extension_connected: health.extension_connected,
         extension_id: health.extension_id,
+      },
+      doctor: {
+        initial_status: initial.status,
+        running_status: running.status,
+        running_recovery: running.recovery,
       },
       rpc: {
         sessions_request_id: sessions.body.r.request_id,

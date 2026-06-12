@@ -30,6 +30,7 @@ struct BridgeProcess {
 impl BridgeProcess {
     async fn start() -> Self {
         let app_dir = tempfile::tempdir().expect("temp app dir");
+        fs::create_dir(app_dir.path().join("extension")).expect("extension dir");
         fs::write(app_dir.path().join("version"), EXTENSION_VERSION).expect("version file");
         let ws_port = free_port();
         let http_port = free_port();
@@ -177,6 +178,40 @@ fn status_json(app_dir: &std::path::Path, ws_port: u16, http_port: u16) -> Value
         .expect("run status");
     assert!(output.status.success());
     serde_json::from_slice(&output.stdout).unwrap()
+}
+
+fn doctor_json(app_dir: &std::path::Path, ws_port: u16, http_port: u16) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
+        .arg("doctor")
+        .arg("--json")
+        .env("CDP_BRIDGE_APP_DIR", app_dir)
+        .env("CDP_BRIDGE_WS_PORT", ws_port.to_string())
+        .env("CDP_BRIDGE_HTTP_PORT", http_port.to_string())
+        .output()
+        .expect("run doctor");
+    assert!(
+        output.status.success(),
+        "doctor exits successfully even for fail/degraded reports: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+fn doctor_check<'a>(body: &'a Value, id: &str) -> &'a Value {
+    body["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|check| check["id"] == id)
+        .unwrap_or_else(|| panic!("missing doctor check {id}: {body}"))
+}
+
+fn doctor_recovery_contains(body: &Value, action: &str) -> bool {
+    body["recovery"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == action)
 }
 
 struct TinyHttpServer {
@@ -454,6 +489,132 @@ fn status_default_outputs_human_summary() {
     assert!(serde_json::from_slice::<Value>(&output.stdout).is_err());
 }
 
+#[test]
+fn doctor_empty_app_dir_reports_install_and_start_recovery_without_token_leak() {
+    let app_dir = tempfile::tempdir().expect("temp app dir");
+    let ws_port = free_port();
+    let http_port = free_port();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
+        .arg("doctor")
+        .arg("--json")
+        .env("CDP_BRIDGE_APP_DIR", app_dir.path())
+        .env("CDP_BRIDGE_WS_PORT", ws_port.to_string())
+        .env("CDP_BRIDGE_HTTP_PORT", http_port.to_string())
+        .output()
+        .expect("run doctor");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let body: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert_eq!(body["schema_version"], 1);
+    assert_eq!(body["status"], "fail");
+    assert_eq!(doctor_check(&body, "token_file")["status"], "fail");
+    assert_eq!(doctor_check(&body, "token_file")["kind"], "readiness");
+    assert_eq!(doctor_check(&body, "extension_copy")["status"], "fail");
+    assert_eq!(doctor_check(&body, "extension_version")["status"], "fail");
+    assert!(doctor_recovery_contains(&body, "START_BRIDGE"));
+    assert!(doctor_recovery_contains(&body, "RUN_INSTALL_BROWSER"));
+    assert!(doctor_recovery_contains(&body, "LOAD_UNPACKED_EXTENSION"));
+    assert!(!stdout.contains("abcdef0123456789abcdef0123456789"));
+}
+
+#[test]
+fn doctor_schema_marks_required_only_for_prerequisites() {
+    let app_dir = tempfile::tempdir().expect("temp app dir");
+    let body = doctor_json(app_dir.path(), free_port(), free_port());
+    let checks = body["checks"].as_array().unwrap();
+    assert!(!checks.is_empty());
+
+    for check in checks {
+        assert!(check.get("id").and_then(Value::as_str).is_some());
+        assert!(check.get("status").and_then(Value::as_str).is_some());
+        assert!(check.get("message").and_then(Value::as_str).is_some());
+        assert!(check.get("required").and_then(Value::as_bool).is_some());
+        assert!(check.get("kind").and_then(Value::as_str).is_some());
+        assert!(check.get("recovery").and_then(Value::as_array).is_some());
+        assert_eq!(
+            check["required"].as_bool().unwrap(),
+            check["kind"] == "prerequisite",
+            "required must mirror prerequisite kind for {check}"
+        );
+    }
+}
+
+#[test]
+fn doctor_no_running_bridge_with_installed_files_is_degraded() {
+    let app_dir = tempfile::tempdir().expect("temp app dir");
+    fs::create_dir(app_dir.path().join("extension")).unwrap();
+    fs::write(app_dir.path().join("version"), EXTENSION_VERSION).unwrap();
+    fs::write(
+        app_dir.path().join("token"),
+        "abcdef0123456789abcdef0123456789",
+    )
+    .unwrap();
+
+    let body = doctor_json(app_dir.path(), free_port(), free_port());
+    assert_eq!(body["status"], "degraded");
+    assert_eq!(doctor_check(&body, "extension_copy")["status"], "ok");
+    assert_eq!(doctor_check(&body, "extension_version")["status"], "ok");
+    assert_eq!(doctor_check(&body, "health_endpoint")["status"], "fail");
+    assert_eq!(doctor_check(&body, "server_identity")["status"], "unknown");
+    assert!(doctor_recovery_contains(&body, "START_BRIDGE"));
+}
+
+#[tokio::test]
+async fn doctor_reports_non_bridge_http_conflict_as_fail_without_killing_it() {
+    let fake = TinyHttpServer::start("200 OK", "{\"server\":\"something-else\"}");
+    let app_dir = tempfile::tempdir().expect("temp app dir");
+    fs::create_dir(app_dir.path().join("extension")).unwrap();
+    fs::write(app_dir.path().join("version"), EXTENSION_VERSION).unwrap();
+    fs::write(
+        app_dir.path().join("token"),
+        "abcdef0123456789abcdef0123456789",
+    )
+    .unwrap();
+
+    let body = doctor_json(app_dir.path(), free_port(), fake.port);
+    assert_eq!(body["status"], "fail");
+    assert_eq!(doctor_check(&body, "http_port")["status"], "fail");
+    assert_eq!(doctor_check(&body, "server_identity")["status"], "fail");
+    assert!(doctor_recovery_contains(&body, "STOP_CONFLICTING_PROCESS"));
+    assert!(doctor_recovery_contains(&body, "USE_DIFFERENT_PORT"));
+
+    let still_there = reqwest::get(format!("http://127.0.0.1:{}/health", fake.port))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(still_there.contains("something-else"));
+}
+
+#[test]
+fn doctor_human_output_is_not_json_and_hides_token() {
+    let app_dir = tempfile::tempdir().expect("temp app dir");
+    fs::create_dir(app_dir.path().join("extension")).unwrap();
+    fs::write(app_dir.path().join("version"), EXTENSION_VERSION).unwrap();
+    fs::write(
+        app_dir.path().join("token"),
+        "abcdef0123456789abcdef0123456789",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_tmwd-cdp-bridge"))
+        .arg("doctor")
+        .env("CDP_BRIDGE_APP_DIR", app_dir.path())
+        .env("CDP_BRIDGE_WS_PORT", free_port().to_string())
+        .env("CDP_BRIDGE_HTTP_PORT", free_port().to_string())
+        .output()
+        .expect("run doctor");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("tmwd-cdp-bridge doctor"));
+    assert!(stdout.contains("Machine-readable: tmwd-cdp-bridge doctor --json"));
+    assert!(!stdout.contains("abcdef0123456789abcdef0123456789"));
+    assert!(serde_json::from_slice::<Value>(&output.stdout).is_err());
+}
+
 #[tokio::test]
 async fn status_reflects_running_server_and_extension_connection() {
     let bridge = BridgeProcess::start().await;
@@ -476,6 +637,31 @@ async fn status_reflects_running_server_and_extension_connection() {
         body["server"]["extension_id"],
         "eghifjkffmcmffejmaaeicejpfopplem"
     );
+}
+
+#[tokio::test]
+async fn doctor_reflects_running_server_and_extension_connection() {
+    let bridge = BridgeProcess::start().await;
+
+    let body = doctor_json(bridge.app_dir.path(), bridge.ws_port, bridge.http_port);
+    assert_eq!(body["status"], "degraded");
+    assert_eq!(doctor_check(&body, "health_endpoint")["status"], "ok");
+    assert_eq!(doctor_check(&body, "server_identity")["status"], "ok");
+    assert_eq!(
+        doctor_check(&body, "extension_connection")["status"],
+        "fail"
+    );
+    assert!(doctor_recovery_contains(&body, "RELOAD_EXTENSION"));
+    assert!(doctor_recovery_contains(&body, "LOAD_UNPACKED_EXTENSION"));
+
+    let mut ws = connect_extension(&bridge).await;
+    send_tabs(&mut ws, json!([])).await;
+
+    let body = doctor_json(bridge.app_dir.path(), bridge.ws_port, bridge.http_port);
+    assert_eq!(body["status"], "ok");
+    assert_eq!(doctor_check(&body, "extension_connection")["status"], "ok");
+    assert_eq!(doctor_check(&body, "extension_id")["status"], "ok");
+    assert_eq!(doctor_check(&body, "extension_origin")["status"], "ok");
 }
 
 #[tokio::test]

@@ -77,14 +77,17 @@ cargo build --release
 tmwd-cdp-bridge install edge
 tmwd-cdp-bridge install chrome
 tmwd-cdp-bridge start
+tmwd-cdp-bridge doctor
+tmwd-cdp-bridge doctor --json
 tmwd-cdp-bridge status
 tmwd-cdp-bridge status --json
 tmwd-cdp-bridge stop
 tmwd-cdp-bridge upgrade
 ```
 
-`status` 默认输出适合人看的摘要。Agent、脚本和 CI 应使用
-`status --json`，避免解析人类可读文本。
+`doctor` 是首选诊断命令，会检查本地安装、端口、bridge 身份、扩展连接状态，
+并给出安全的恢复动作。Agent、脚本和 CI 应优先使用 `doctor --json`，避免解析
+人类可读文本。`status` 保留为更紧凑的运行时快照。
 
 `upgrade` 会从 GitHub Releases 下载当前平台的正式包并替换本地 CLI
 二进制；刷新浏览器扩展文件请继续使用 `install edge` 或 `install chrome`。
