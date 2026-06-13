@@ -5,7 +5,9 @@ description: Use tmwd-cdp-bridge to control a local Chrome or Edge browser throu
 
 # TMWD CDP Bridge
 
-Use this skill for real local Chromium-family browser work through `tmwd-cdp-bridge`. It is generic Agent guidance: it assumes only shell access, file reads, and `curl` or equivalent HTTP.
+Use this skill for real local Chromium-family browser work through
+`tmwd-cdp-bridge`. It is generic Agent guidance and assumes only shell access,
+file reads, and `curl` or equivalent HTTP.
 
 ## Non-Negotiables
 
@@ -14,107 +16,59 @@ Use this skill for real local Chromium-family browser work through `tmwd-cdp-bri
 - Keep all bridge traffic on `127.0.0.1`; do not expose bridge ports externally.
 - Never print the full token, cookies, authorization headers, or unrelated page secrets in user-facing output.
 - Use only extension ID `eghifjkffmcmffejmaaeicejpfopplem`. Old ID `aikfggdiblmijobpgdapacebmcjknbof` is incompatible and must stay disabled.
-- Treat `execute_js` and `fallback:"cdp"` as code running in the user's browser page. Ask/confirm before destructive actions such as submitting forms, deleting data, changing account settings, purchases, or sending messages.
+- Treat `execute_js` and `fallback:"cdp"` as code running in the user's browser page. Ask before destructive actions such as submitting forms, deleting data, changing account settings, purchases, or sending messages.
+
+## Reference Files
+
+- Read [references/install.md](references/install.md) when `tmwd-cdp-bridge` is missing, old, or not on `PATH`.
+- Read [references/recovery.md](references/recovery.md) when `doctor --json` returns `degraded` or `fail`.
+- Read [references/rpc.md](references/rpc.md) before making `/v1/rpc` calls or when choosing between normal JS, `fallback:"cdp"`, direct CDP, batch, or extension diagnostics.
 
 ## First Use Confirmation
 
-Before the first browser action in a task, make sure the user intent covers browser access. A concise confirmation is enough when intent is unclear:
+Before the first browser action in a task, make sure the user intent covers
+browser access. A concise confirmation is enough when intent is unclear:
 
 `This can read the current page and execute JavaScript/CDP in your local browser. Should I continue?`
 
-If the user explicitly asked to inspect, operate, or test a site, proceed and avoid repeated confirmations for read-only actions.
+If the user explicitly asked to inspect, operate, or test a site, proceed and
+avoid repeated confirmations for read-only actions.
 
 ## Start Or Reuse
 
-If `tmwd-cdp-bridge` is not on `PATH`, install the release binary from
-`https://github.com/koda-claw/tmwd-cdp-bridge/releases` or run the repository
-installer:
+Track whether you started the bridge in this task. Stop only a bridge you
+started; reuse matching existing bridges.
 
-```sh
-# macOS/Linux, auto-detects OS/arch
-SKILL_DIR="$HOME/.codex/skills" sh scripts/install.sh
-```
-
-```powershell
-# Windows PowerShell
-$env:SKILL_DIR="$HOME\.codex\skills"
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
-```
-
-If you are already inside this source checkout, you may replace
-`tmwd-cdp-bridge` with `cargo run --`.
-
-Track whether you started the bridge in this task. Stop only a bridge you started; reuse matching existing bridges.
+1. If `tmwd-cdp-bridge` is missing or too old for `doctor`, read
+   [references/install.md](references/install.md).
+2. Run:
 
 ```sh
 tmwd-cdp-bridge doctor --json
 ```
 
-Use plain `tmwd-cdp-bridge doctor` only for human-readable troubleshooting. If
-`doctor` is unavailable because the installed binary is older, fall back to:
+3. Branch on JSON fields, not process exit code:
+   - `status:"ok"`: proceed to health/token/RPC.
+   - `status:"degraded"`: follow only listed local `recovery` actions, then rerun `doctor --json`.
+   - `status:"fail"`: do not proceed with page work; resolve install/version/port prerequisites first.
+4. If `doctor` is unavailable because the installed binary is older, fall back to:
 
 ```sh
 tmwd-cdp-bridge status --json
 ```
 
-For `doctor --json`, branch on `status` and `recovery`:
+Use plain `tmwd-cdp-bridge doctor` only for human-readable troubleshooting.
 
-- `ok`: proceed to `/health`, token read, and RPC.
-- `degraded`: follow only listed local recovery actions, then rerun `doctor --json`.
-- `fail`: do not proceed with page work; follow install/version/port recovery first.
+## Ready Check
 
-Common recovery actions:
-
-- `START_BRIDGE`: run `tmwd-cdp-bridge start`.
-- `RUN_INSTALL_BROWSER`: run `tmwd-cdp-bridge install edge` or `tmwd-cdp-bridge install chrome`.
-- `LOAD_UNPACKED_EXTENSION`: load the printed extension directory in the browser extensions page.
-- `RELOAD_EXTENSION`: reload the unpacked extension in the browser extensions page.
-- `DISABLE_LEGACY_EXTENSION`: ask the user to disable old extension id `aikfggdiblmijobpgdapacebmcjknbof`.
-- `STOP_CONFLICTING_PROCESS`: ask before stopping anything; never kill unrelated processes automatically.
-- `USE_DIFFERENT_PORT`: set both `CDP_BRIDGE_HTTP_PORT` and `CDP_BRIDGE_WS_PORT`.
-
-If no compatible server is running and doctor lists `START_BRIDGE`:
+Proceed with browser page actions only when `/health` shows the expected bridge,
+extension, and connection:
 
 ```sh
-tmwd-cdp-bridge start
+curl -s "http://127.0.0.1:${CDP_BRIDGE_HTTP_PORT:-18766}/health"
 ```
 
-If install or version errors appear:
-
-```sh
-tmwd-cdp-bridge install edge
-# or
-tmwd-cdp-bridge install chrome
-```
-
-Load the printed `extension/` directory in `edge://extensions` or `chrome://extensions` with Developer mode enabled. Use `tmwd-cdp-bridge repair edge` or `repair chrome` to reprint recovery instructions.
-
-## Token And Health
-
-Default token files:
-
-- macOS: `~/Library/Application Support/tmwd-cdp-bridge/token`
-- Linux: `${XDG_DATA_HOME:-$HOME/.local/share}/tmwd-cdp-bridge/token`
-- Windows: `%LOCALAPPDATA%\tmwd-cdp-bridge\token`
-
-Portable shell helper for macOS/Linux:
-
-```sh
-APP_DIR="${CDP_BRIDGE_APP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/tmwd-cdp-bridge}"
-case "$(uname -s)" in
-  Darwin) APP_DIR="${CDP_BRIDGE_APP_DIR:-$HOME/Library/Application Support/tmwd-cdp-bridge}" ;;
-esac
-TOKEN="$(cat "$APP_DIR/token")"
-HTTP_PORT="${CDP_BRIDGE_HTTP_PORT:-18766}"
-```
-
-Health:
-
-```sh
-curl -s "http://127.0.0.1:${HTTP_PORT:-18766}/health"
-```
-
-Proceed with page actions only when health shows:
+Required fields:
 
 ```json
 {
@@ -124,140 +78,25 @@ Proceed with page actions only when health shows:
 }
 ```
 
-If `extension_connected` is false, open/reload the extension and re-check health. If another server is on the port or the version mismatches, follow the CLI error; do not kill unrelated processes.
+If `extension_connected` is false, follow `doctor --json` recovery guidance.
+If another service owns the port or the version mismatches, do not kill
+unrelated processes automatically.
 
 ## Real Task Flow
 
 1. Confirm user intent for browser access if needed.
-2. Run `doctor --json`; reuse a matching server or start one when recovery lists `START_BRIDGE`, and remember you started it.
+2. Run `doctor --json`; recover using [references/recovery.md](references/recovery.md) until ready.
 3. Confirm `/health` identity, fixed extension ID, and `extension_connected:true`.
-4. Read token into a variable without printing it.
+4. Read token into a variable without printing it. Use [references/rpc.md](references/rpc.md) for platform helpers.
 5. List or find sessions.
 6. Execute read-only JavaScript first; use `fallback:"cdp"` only for CSP/page-world failures.
 7. Summarize only task-relevant results.
 8. Stop only the server you started for this task.
 
-## RPC Examples
+## Lifecycle Hooks
 
-All RPC calls:
-
-```sh
-curl -s "http://127.0.0.1:${HTTP_PORT:-18766}/v1/rpc" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"cmd":"get_all_sessions","request_id":"sessions-1"}'
-```
-
-Find a tab:
-
-```json
-{
-  "cmd": "find_session",
-  "request_id": "find-1",
-  "url_contains": "example.com",
-  "title_contains": "Dashboard"
-}
-```
-
-Read page data:
-
-```json
-{
-  "cmd": "execute_js",
-  "request_id": "read-1",
-  "sessionId": "123",
-  "code": "({title: document.title, url: location.href, text: document.body.innerText.slice(0, 4000)})",
-  "timeout": 15
-}
-```
-
-Useful snippets:
-
-```js
-document.title
-location.href
-document.body.innerText.slice(0, 4000)
-Array.from(document.querySelectorAll('a,button,[role=button]')).map((e,i)=>({i,text:e.innerText?.trim(),href:e.href||null})).filter(x=>x.text||x.href).slice(0,100)
-```
-
-CDP fallback:
-
-```json
-{
-  "cmd": "execute_js",
-  "request_id": "fallback-1",
-  "sessionId": "123",
-  "fallback": "cdp",
-  "code": "document.title",
-  "timeout": 15
-}
-```
-
-Direct CDP:
-
-```json
-{
-  "cmd": "execute_js",
-  "request_id": "cdp-1",
-  "sessionId": "123",
-  "mode": "cdp",
-  "code": {
-    "method": "Runtime.evaluate",
-    "params": {
-      "expression": "document.title",
-      "awaitPromise": true,
-      "returnByValue": true
-    }
-  }
-}
-```
-
-Batch read:
-
-```json
-{
-  "cmd": "batch",
-  "request_id": "batch-1",
-  "items": [
-    {"cmd":"execute_js","request_id":"title","sessionId":"123","code":"document.title"},
-    {"cmd":"execute_js","request_id":"url","sessionId":"123","code":"location.href"}
-  ]
-}
-```
-
-Check each batch item for `error`.
-
-## Old Extension Diagnostic
-
-If the browser may have both old and new extensions, list extensions through the new bridge after it is connected:
-
-```json
-{
-  "cmd": "execute_js",
-  "request_id": "extensions-1",
-  "code": {
-    "cmd": "management",
-    "method": "list"
-  }
-}
-```
-
-If `aikfggdiblmijobpgdapacebmcjknbof` is enabled, tell the user to disable it in the browser extension page. Do not use the old protocol.
-
-## Optional Lifecycle Hooks
-
-Some Agent hosts support activate/deactivate hooks. They are optional. Hook behavior must be equivalent to the shell flow:
+Some Agent hosts support activate/deactivate hooks. They are optional. Hook
+behavior must match the shell flow:
 
 - activate: run `doctor --json`; start only if no compatible bridge is running and recovery lists `START_BRIDGE`; never hide version/port conflicts.
 - deactivate: stop only if this Agent started the bridge; otherwise leave it running.
-
-Agents without hooks should use the shell commands above.
-
-## Troubleshooting
-
-- `UNAUTHORIZED`: re-read the token file.
-- `NO_EXTENSION`: server is up but extension is not connected; reload the extension and re-check health.
-- `NO_SESSION`: list sessions and choose a current `sessionId`.
-- `EXEC_TIMEOUT`: confirm the page is responsive before increasing timeout.
-- `BAD_REQUEST`: check JSON shape, command spelling, and `fallback` value.
-- Port conflict: set both `CDP_BRIDGE_WS_PORT` and `CDP_BRIDGE_HTTP_PORT`; do not silently switch only one side.

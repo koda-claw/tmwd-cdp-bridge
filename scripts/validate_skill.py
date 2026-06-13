@@ -13,6 +13,25 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+def validate_no_unforbidden_link(path: Path, text: str) -> None:
+    forbids_link = re.search(
+        r"(do not|never)\s+(call|use)\s+`?/link`?", text, flags=re.I
+    )
+    if "/link" in text and not forbids_link:
+        fail(f"legacy /link mention in {path} must be explicitly forbidden")
+
+
+def validate_local_markdown_links(skill_dir: Path, path: Path, text: str) -> None:
+    for target in re.findall(r"\[[^\]]+\]\(([^):#][^):#]*\.md)(?:#[^)]+)?\)", text):
+        linked = (path.parent / target).resolve()
+        try:
+            linked.relative_to(skill_dir.resolve())
+        except ValueError:
+            continue
+        if not linked.is_file():
+            fail(f"broken local markdown link in {path}: {target}")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         fail("usage: scripts/validate_skill.py <skill-dir>")
@@ -33,11 +52,14 @@ def main() -> None:
     body = text[match.end():].strip()
     if not body:
         fail("SKILL.md body is empty")
-    forbids_link = re.search(
-        r"(do not|never)\s+(call|use)\s+`?/link`?", body, flags=re.I
-    )
-    if "/link" in body and not forbids_link:
-        fail("legacy /link mention must be explicitly forbidden")
+    validate_no_unforbidden_link(skill, body)
+    validate_local_markdown_links(skill_dir, skill, body)
+    for markdown in skill_dir.rglob("*.md"):
+        if markdown == skill:
+            continue
+        markdown_text = markdown.read_text(encoding="utf-8")
+        validate_no_unforbidden_link(markdown, markdown_text)
+        validate_local_markdown_links(skill_dir, markdown, markdown_text)
     print("Skill is valid!")
 
 
