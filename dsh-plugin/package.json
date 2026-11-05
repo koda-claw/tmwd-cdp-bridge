@@ -1,0 +1,50 @@
+{
+  "name": "tmwd-cdp-bridge-dsh-plugin",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness tools for the tmwd-cdp-bridge local browser bridge.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.1",
+    "node": ">=22.19.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.2 || >=3.18.6-alpha.2 <4.0.0"
+  },
+  "scripts": {
+    "check": "node --check lib/bridge.js && node --check lib/tools.js && node --check lib/index.js && node --test",
+    "test": "node --test"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "browser",
+    "cdp"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koda-claw/tmwd-cdp-bridge.git",
+    "directory": "dsh-plugin"
+  },
+  "license": "MIT"
+}

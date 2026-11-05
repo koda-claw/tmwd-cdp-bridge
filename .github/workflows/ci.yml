@@ -59,6 +59,15 @@ jobs:
           node --check scripts/soak_bridge.mjs
           node --check scripts/smoke_real_browser.mjs
 
+      - name: DSH plugin tests
+        shell: bash
+        working-directory: dsh-plugin
+        run: |
+          node --check lib/bridge.js
+          node --check lib/tools.js
+          node --check lib/index.js
+          node --test
+
       - name: Unix installer syntax
         if: runner.os != 'Windows'
         shell: bash

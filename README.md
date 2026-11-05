@@ -122,6 +122,22 @@ After installing the skill, ask the agent to use `tmwd-cdp-bridge` for browser
 inspection or page automation. The skill itself explains the runtime flow and
 RPC contract.
 
+## Use from DeepSeek Harness (DSH)
+
+The optional [`dsh-plugin`](dsh-plugin/) bundle exposes this bridge as native
+DSH tools: `tmwd_browser_status`, `tmwd_list_tabs`, `tmwd_find_tab`,
+`tmwd_execute_js`, and `tmwd_cdp`. Start the bridge and load the extension
+first, then install the bundle into a profile:
+
+```sh
+dsh plugin --profile web add ./dsh-plugin
+dsh web
+```
+
+See [dsh-plugin/README.md](dsh-plugin/README.md) for configuration, security
+notes, and limitations. The plugin is a thin local client; it does not start or
+manage the bridge.
+
 ## Browser Setup
 
 ```sh
@@ -244,6 +260,10 @@ node --check scripts/smoke_no_extension.mjs
 node --check scripts/skill_minimal_flow.mjs
 node --check scripts/soak_bridge.mjs
 node --check scripts/smoke_real_browser.mjs
+node --check dsh-plugin/lib/bridge.js
+node --check dsh-plugin/lib/tools.js
+node --check dsh-plugin/lib/index.js
+(cd dsh-plugin && node --test)
 python3 scripts/validate_skill.py skills/tmwd-cdp-bridge
 ```
 
