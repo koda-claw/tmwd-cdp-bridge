@@ -17,6 +17,10 @@ node --check scripts/smoke_no_extension.mjs
 node --check scripts/skill_minimal_flow.mjs
 node --check scripts/soak_bridge.mjs
 node --check scripts/smoke_real_browser.mjs
+node --check dsh-plugin/lib/bridge.js
+node --check dsh-plugin/lib/tools.js
+node --check dsh-plugin/lib/index.js
+(cd dsh-plugin && node --test)
 python3 scripts/validate_skill.py skills/tmwd-cdp-bridge
 ```
 
@@ -28,6 +32,7 @@ python3 scripts/validate_skill.py skills/tmwd-cdp-bridge
 - Clippy with warnings denied
 - Unit and integration tests
 - Node syntax checks for extension and harness scripts
+- DSH plugin syntax checks and unit tests
 - No-extension smoke covering start/status/stop, HTTP auth, and the `NO_EXTENSION` error path
 - Repository-local Skill validation
 
@@ -57,7 +62,7 @@ Useful harnesses:
 - Linux x64
 - Windows x64
 
-Each archive includes the binary, README, LICENSE, docs, and Skill directory. Each archive gets a `.sha256` checksum.
+Each archive includes the binary, README, LICENSE, docs, Skill directory, and optional DSH plugin bundle. Each archive gets a `.sha256` checksum.
 
 Tag releases with `vX.Y.Z` after updating `Cargo.toml`, README/API examples if needed, `docs/releases/vX.Y.Z.md`, and the extension version when extension files change.
 
