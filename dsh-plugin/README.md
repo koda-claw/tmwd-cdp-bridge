@@ -44,15 +44,23 @@ dsh plugin --profile web add ./dsh-plugin
 dsh web
 ```
 
+Once the package is published, the npm form is equivalent:
+
+```sh
+dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
+dsh web
+```
+
 The CLI records the dependency, links the bundle patch in
 `dsh-plugin/cordis.patch.yml`, and enables the bundle in the profile. If the
 profile is already running with HMR, the new tools appear without a restart;
 otherwise restart the profile.
 
-The plugin is not published to npm. Install it from this checkout or from a
-release archive that includes `dsh-plugin/`. The package name is
-`dsh-plugin-tmwd-cdp-bridge`; the `dsh-plugin-` prefix follows the naming
-convention used by community DSH bundles.
+The plugin is prepared for publication as
+`@koda-claw/dsh-plugin-tmwd-cdp-bridge` under the `@koda-claw` npm scope; the
+`dsh-plugin-` package prefix follows the naming convention used by community
+DSH bundles. Until it is published, install it from this checkout or from a
+release archive that includes `dsh-plugin/`.
 
 ## Configuration
 
@@ -131,6 +139,19 @@ configuration and token handling without another long-running process. An MCP
 wrapper would be useful for agents outside DSH, but this repository already
 ships the generic `skills/tmwd-cdp-bridge` flow and the RPC contract for those
 hosts.
+
+## Publishing
+
+The package is prepared for the `@koda-claw` npm scope and declares
+`publishConfig.access: "public"`. After review, publish from a clean checkout:
+
+```sh
+cd dsh-plugin
+npm publish --access public
+```
+
+The publishing account must own the `@koda-claw` scope. The bundle patch uses
+the scoped package name, so npm and local-path installs behave the same.
 
 ## Development
 

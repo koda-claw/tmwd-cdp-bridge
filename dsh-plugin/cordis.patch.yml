@@ -2,4 +2,4 @@
 # The user can override this entry by id in the profile's cordis.patch.yml.
 - insert:
     - id: tmwd-cdp-bridge
-      name: dsh-plugin-tmwd-cdp-bridge
+      name: '@koda-claw/dsh-plugin-tmwd-cdp-bridge'

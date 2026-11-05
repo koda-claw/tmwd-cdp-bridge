@@ -43,12 +43,20 @@ dsh plugin --profile web add ./dsh-plugin
 dsh web
 ```
 
+发布到 npm 后，也可以用包名安装：
+
+```sh
+dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
+dsh web
+```
+
 CLI 会记录依赖、链接 `dsh-plugin/cordis.patch.yml` 中的 bundle patch，并在
 profile 中启用该 bundle。如果 profile 正在运行且启用了 HMR，新工具会自动出现；
 否则重启 profile。
 
-插件尚未发布到 npm，请从本仓库或包含 `dsh-plugin/` 的 release archive 安装。
-包名是 `dsh-plugin-tmwd-cdp-bridge`，沿用社区 DSH bundle 的 `dsh-plugin-` 前缀约定。
+包已按 `@koda-claw` npm 作用域准备为 `@koda-claw/dsh-plugin-tmwd-cdp-bridge`，
+`dsh-plugin-` 前缀沿用社区 DSH bundle 的命名约定。正式发布前，请从本仓库或
+包含 `dsh-plugin/` 的 release archive 安装。
 
 ## 配置
 
@@ -115,6 +123,19 @@ token 默认路径与 bridge 一致：
 原生 Cordis bundle 直接注册工具，复用 profile 的配置与 token 处理，不需要额外
 常驻进程。对 DSH 之外的 Agent，MCP 包装仍然有价值，但本仓库已经提供通用的
 `skills/tmwd-cdp-bridge` 流程和 RPC 契约。
+
+## 发布
+
+包已按 `@koda-claw` npm 作用域准备好，并声明 `publishConfig.access: "public"`。
+评审通过后，在干净的 checkout 中发布：
+
+```sh
+cd dsh-plugin
+npm publish --access public
+```
+
+发布账号必须是 `@koda-claw` 作用域的 owner。bundle patch 使用 scoped 包名，
+因此 npm 安装与本地路径安装行为一致。
 
 ## 开发
 
