@@ -50,7 +50,9 @@ profile is already running with HMR, the new tools appear without a restart;
 otherwise restart the profile.
 
 The plugin is not published to npm. Install it from this checkout or from a
-release archive that includes `dsh-plugin/`.
+release archive that includes `dsh-plugin/`. The package name is
+`dsh-plugin-tmwd-cdp-bridge`; the `dsh-plugin-` prefix follows the naming
+convention used by community DSH bundles.
 
 ## Configuration
 

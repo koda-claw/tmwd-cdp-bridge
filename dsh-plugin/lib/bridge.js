@@ -5,7 +5,7 @@
  * each RPC call, and turns bridge error codes into actionable messages. It has
  * no dependency on DeepSeek Harness so it can be tested with plain Node.
  *
- * @module tmwd-cdp-bridge-dsh-plugin/bridge
+ * @module dsh-plugin-tmwd-cdp-bridge/bridge
  */
 
 import { randomUUID } from 'node:crypto'

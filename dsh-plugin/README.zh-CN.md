@@ -48,6 +48,7 @@ profile 中启用该 bundle。如果 profile 正在运行且启用了 HMR，新�
 否则重启 profile。
 
 插件尚未发布到 npm，请从本仓库或包含 `dsh-plugin/` 的 release archive 安装。
+包名是 `dsh-plugin-tmwd-cdp-bridge`，沿用社区 DSH bundle 的 `dsh-plugin-` 前缀约定。
 
 ## 配置
 
