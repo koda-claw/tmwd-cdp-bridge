@@ -5,7 +5,7 @@
  * registry validates parameter and output schemas. The module itself has no
  * DeepSeek Harness import, which keeps the definitions unit-testable.
  *
- * @module tmwd-cdp-bridge-dsh-plugin/tools
+ * @module dsh-plugin-tmwd-cdp-bridge/tools
  */
 
 import { BridgeError } from './bridge.js'
