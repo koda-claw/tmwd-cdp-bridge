@@ -96,15 +96,16 @@ cargo build --release
 
 可选的 [`dsh-plugin`](dsh-plugin/) bundle 会把 bridge 暴露为 DSH 原生工具：
 `tmwd_browser_status`、`tmwd_list_tabs`、`tmwd_find_tab`、`tmwd_execute_js`、
-`tmwd_cdp`。先启动 bridge 并加载扩展，再把 bundle 安装到 profile：
+`tmwd_cdp`。先启动 bridge 并加载扩展，再从 npm 安装 bundle：
 
 ```sh
-dsh plugin --profile web add ./dsh-plugin
+dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
 dsh web
 ```
 
-配置、安全说明和限制见 [dsh-plugin/README.zh-CN.md](dsh-plugin/README.zh-CN.md)。
-插件只是本地轻量客户端，不会启动或管理 bridge。
+从源码 checkout 安装时，把包名换成 `./dsh-plugin` 即可。配置、安全说明和限制见
+[dsh-plugin/README.zh-CN.md](dsh-plugin/README.zh-CN.md)。插件只是本地轻量客户端，
+不会启动或管理 bridge。
 
 ## 常用命令
 

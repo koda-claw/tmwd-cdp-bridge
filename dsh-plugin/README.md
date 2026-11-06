@@ -37,17 +37,17 @@ curl -s http://127.0.0.1:18766/health
 
 ## Install
 
-From a source checkout:
-
-```sh
-dsh plugin --profile web add ./dsh-plugin
-dsh web
-```
-
-Once the package is published, the npm form is equivalent:
+From npm:
 
 ```sh
 dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
+dsh web
+```
+
+From a source checkout, the local path is equivalent:
+
+```sh
+dsh plugin --profile web add ./dsh-plugin
 dsh web
 ```
 
@@ -56,11 +56,12 @@ The CLI records the dependency, links the bundle patch in
 profile is already running with HMR, the new tools appear without a restart;
 otherwise restart the profile.
 
-The plugin is prepared for publication as
-`@koda-claw/dsh-plugin-tmwd-cdp-bridge` under the `@koda-claw` npm scope; the
-`dsh-plugin-` package prefix follows the naming convention used by community
-DSH bundles. Until it is published, install it from this checkout or from a
-release archive that includes `dsh-plugin/`.
+The plugin is published as
+[`@koda-claw/dsh-plugin-tmwd-cdp-bridge@0.1.0`](https://www.npmjs.com/package/@koda-claw/dsh-plugin-tmwd-cdp-bridge)
+under the `@koda-claw` npm scope; the `dsh-plugin-` package prefix follows the
+naming convention used by community DSH bundles. Installing from npm is the
+recommended path; a source checkout or a release archive that includes
+`dsh-plugin/` also works.
 
 ## Configuration
 
@@ -142,8 +143,10 @@ hosts.
 
 ## Publishing
 
-The package is prepared for the `@koda-claw` npm scope and declares
-`publishConfig.access: "public"`. After review, publish from a clean checkout:
+The package is published as `@koda-claw/dsh-plugin-tmwd-cdp-bridge@0.1.0` under
+the `@koda-claw` npm scope and declares `publishConfig.access: "public"`. To
+release a new version, update the version in `package.json` and run from a clean
+checkout:
 
 ```sh
 cd dsh-plugin

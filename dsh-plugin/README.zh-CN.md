@@ -36,17 +36,17 @@ curl -s http://127.0.0.1:18766/health
 
 ## 安装
 
-在源码 checkout 中执行：
-
-```sh
-dsh plugin --profile web add ./dsh-plugin
-dsh web
-```
-
-发布到 npm 后，也可以用包名安装：
+从 npm 安装：
 
 ```sh
 dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
+dsh web
+```
+
+从源码 checkout 安装，本地路径等价：
+
+```sh
+dsh plugin --profile web add ./dsh-plugin
 dsh web
 ```
 
@@ -54,9 +54,10 @@ CLI 会记录依赖、链接 `dsh-plugin/cordis.patch.yml` 中的 bundle patch�
 profile 中启用该 bundle。如果 profile 正在运行且启用了 HMR，新工具会自动出现；
 否则重启 profile。
 
-包已按 `@koda-claw` npm 作用域准备为 `@koda-claw/dsh-plugin-tmwd-cdp-bridge`，
-`dsh-plugin-` 前缀沿用社区 DSH bundle 的命名约定。正式发布前，请从本仓库或
-包含 `dsh-plugin/` 的 release archive 安装。
+包已发布为
+[`@koda-claw/dsh-plugin-tmwd-cdp-bridge@0.1.0`](https://www.npmjs.com/package/@koda-claw/dsh-plugin-tmwd-cdp-bridge)，
+`dsh-plugin-` 前缀沿用社区 DSH bundle 的命名约定。推荐从 npm 安装；从本仓库或
+包含 `dsh-plugin/` 的 release archive 安装也可以。
 
 ## 配置
 
@@ -126,8 +127,9 @@ token 默认路径与 bridge 一致：
 
 ## 发布
 
-包已按 `@koda-claw` npm 作用域准备好，并声明 `publishConfig.access: "public"`。
-评审通过后，在干净的 checkout 中发布：
+包已发布为 `@koda-claw/dsh-plugin-tmwd-cdp-bridge@0.1.0`，并声明
+`publishConfig.access: "public"`。发布新版本时，更新 `package.json` 中的版本号，
+然后在干净的 checkout 中执行：
 
 ```sh
 cd dsh-plugin

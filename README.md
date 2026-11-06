@@ -152,16 +152,17 @@ RPC contract.
 The optional [`dsh-plugin`](dsh-plugin/) bundle exposes this bridge as native
 DSH tools: `tmwd_browser_status`, `tmwd_list_tabs`, `tmwd_find_tab`,
 `tmwd_execute_js`, and `tmwd_cdp`. Start the bridge and load the extension
-first, then install the bundle into a profile:
+first, then install the bundle from npm:
 
 ```sh
-dsh plugin --profile web add ./dsh-plugin
+dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
 dsh web
 ```
 
-See [dsh-plugin/README.md](dsh-plugin/README.md) for configuration, security
-notes, and limitations. The plugin is a thin local client; it does not start or
-manage the bridge.
+From a source checkout, use `dsh plugin --profile web add ./dsh-plugin`
+instead. See [dsh-plugin/README.md](dsh-plugin/README.md) for configuration,
+security notes, and limitations. The plugin is a thin local client; it does not
+start or manage the bridge.
 
 ## Browser Setup
 
