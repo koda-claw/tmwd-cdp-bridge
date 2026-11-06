@@ -94,14 +94,18 @@ cargo build --release
 
 ## 在 DeepSeek Harness（DSH）中使用
 
-可选的 [`dsh-plugin`](dsh-plugin/) bundle 会把 bridge 暴露为 DSH 原生工具：
+可选的 DSH 插件会把 bridge 暴露为 DSH 原生工具：
 `tmwd_browser_status`、`tmwd_list_tabs`、`tmwd_find_tab`、`tmwd_execute_js`、
-`tmwd_cdp`。先启动 bridge 并加载扩展，再把 bundle 安装到 profile：
+`tmwd_cdp`。插件已发布到 npm：
+[@koda-claw/dsh-plugin-tmwd-cdp-bridge](https://www.npmjs.com/package/@koda-claw/dsh-plugin-tmwd-cdp-bridge)。
+先启动 bridge 并加载扩展，再把插件安装到 profile：
 
 ```sh
-dsh plugin --profile web add ./dsh-plugin
+dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
 dsh web
 ```
+
+从源码 checkout 安装时，改用 `dsh plugin --profile web add ./dsh-plugin`。
 
 配置、安全说明和限制见 [dsh-plugin/README.zh-CN.md](dsh-plugin/README.zh-CN.md)。
 插件只是本地轻量客户端，不会启动或管理 bridge。
