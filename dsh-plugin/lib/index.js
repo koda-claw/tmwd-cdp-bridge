@@ -6,7 +6,7 @@
  * bridge over `POST /v1/rpc`; it deliberately does not start, stop, or install
  * the bridge.
  *
- * @module dsh-plugin-tmwd-cdp-bridge
+ * @module @koda-claw/dsh-plugin-tmwd-cdp-bridge
  */
 
 import z from '@deepseek-ai/schemastery'
