@@ -149,15 +149,20 @@ RPC contract.
 
 ## Use from DeepSeek Harness (DSH)
 
-The optional [`dsh-plugin`](dsh-plugin/) bundle exposes this bridge as native
-DSH tools: `tmwd_browser_status`, `tmwd_list_tabs`, `tmwd_find_tab`,
-`tmwd_execute_js`, and `tmwd_cdp`. Start the bridge and load the extension
-first, then install the bundle into a profile:
+The optional DSH plugin exposes this bridge as native DSH tools:
+`tmwd_browser_status`, `tmwd_list_tabs`, `tmwd_find_tab`, `tmwd_execute_js`,
+and `tmwd_cdp`. It is published on npm as
+[`@koda-claw/dsh-plugin-tmwd-cdp-bridge`](https://www.npmjs.com/package/@koda-claw/dsh-plugin-tmwd-cdp-bridge).
+Start the bridge and load the extension first, then install the plugin into a
+profile:
 
 ```sh
-dsh plugin --profile web add ./dsh-plugin
+dsh plugin --profile web add @koda-claw/dsh-plugin-tmwd-cdp-bridge
 dsh web
 ```
+
+From a source checkout, use `dsh plugin --profile web add ./dsh-plugin`
+instead.
 
 See [dsh-plugin/README.md](dsh-plugin/README.md) for configuration, security
 notes, and limitations. The plugin is a thin local client; it does not start or
